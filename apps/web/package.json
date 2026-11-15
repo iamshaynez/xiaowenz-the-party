@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@party/games": "workspace:*",
     "@party/protocol": "workspace:*",
     "lucide-react": "^0.468.0",
     "qrcode": "^1.5.4",

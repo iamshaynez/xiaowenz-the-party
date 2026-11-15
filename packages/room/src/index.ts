@@ -14,6 +14,18 @@ interface RunningGame {
   state: unknown;
 }
 
+export interface RoomSnapshot {
+  schemaVersion: 1;
+  code: string;
+  phase: RoomPhase;
+  ownerId: string | null;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+  players: PlayerRecord[];
+  game: { id: string; version: number; state: unknown } | null;
+}
+
 export interface CreateRoomOptions {
   code: string;
   owner: PlayerInput;
@@ -45,6 +57,42 @@ export class PartyRoom {
     room.addPlayer(options.owner, options.now);
     room.ownerId = options.owner.id;
     return room;
+  }
+
+  static restore(snapshot: RoomSnapshot, registry: GameRegistry = gameRegistry) {
+    if (snapshot.schemaVersion !== 1) throw new DomainError('SNAPSHOT_INCOMPATIBLE', '房间快照版本不兼容');
+    const room = new PartyRoom(snapshot.code, registry, snapshot.createdAt);
+    room.updatedAt = snapshot.updatedAt;
+    room.phase = snapshot.phase;
+    room.ownerId = snapshot.ownerId;
+    room.version = snapshot.version;
+    room.players.push(...structuredClone(snapshot.players));
+    if (snapshot.game) {
+      const definition = registry.get(snapshot.game.id);
+      if (!definition || definition.version !== snapshot.game.version) {
+        throw new DomainError('SNAPSHOT_INCOMPATIBLE', '游戏快照版本不兼容');
+      }
+      room.runningGame = { definition, state: structuredClone(snapshot.game.state) };
+    }
+    return room;
+  }
+
+  snapshot(): RoomSnapshot {
+    return structuredClone({
+      schemaVersion: 1 as const,
+      code: this.code,
+      phase: this.phase,
+      ownerId: this.ownerId,
+      version: this.version,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      players: this.players,
+      game: this.runningGame ? {
+        id: this.runningGame.definition.id,
+        version: this.runningGame.definition.version,
+        state: this.runningGame.state,
+      } : null,
+    });
   }
 
   addPlayer(input: PlayerInput, now: number) {
@@ -129,6 +177,13 @@ export class PartyRoom {
     const index = this.players.findIndex((player) => player.id === playerId);
     this.players.splice(index, 1);
     if (this.ownerId === playerId) this.ownerId = this.players[0]?.id ?? null;
+    this.touch(now);
+  }
+
+  markAllDisconnected(now: number) {
+    const hasOnlinePlayer = this.players.some((player) => player.connected);
+    if (!hasOnlinePlayer) return;
+    for (const player of this.players) player.connected = false;
     this.touch(now);
   }
 

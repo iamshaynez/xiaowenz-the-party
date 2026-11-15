@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { DomainError, PartyRoom } from '@party/room';
+import type { RoomSnapshot } from '@party/room';
 import { ROOM_CODE_ALPHABET } from '@party/protocol';
 import type { GameAction, Session } from '@party/protocol';
 
@@ -10,10 +11,24 @@ export interface SessionRecord {
   resumeToken: string;
 }
 
+interface ProcessedAction {
+  fingerprint: string;
+  version: number;
+}
+
 interface RoomAggregate {
   room: PartyRoom;
   sessions: Map<string, SessionRecord>;
-  processedActions: Map<string, { fingerprint: string; version: number }>;
+  processedActions: Map<string, ProcessedAction>;
+}
+
+export interface RoomServiceSnapshot {
+  schemaVersion: 1;
+  rooms: Array<{
+    room: RoomSnapshot;
+    sessions: SessionRecord[];
+    processedActions: Array<[string, ProcessedAction]>;
+  }>;
 }
 
 interface RoomServiceOptions {
@@ -37,6 +52,7 @@ export class RoomService {
   private readonly sessionIndex = new Map<string, SessionRecord>();
   private readonly random: () => number;
   private readonly roomTtlMs: number;
+  private onChange: (() => void) | null = null;
 
   constructor(private readonly options: RoomServiceOptions) {
     this.random = options.random ?? Math.random;
@@ -47,16 +63,49 @@ export class RoomService {
     return this.rooms.size;
   }
 
+  setChangeListener(listener: () => void) {
+    this.onChange = listener;
+  }
+
+  snapshot(): RoomServiceSnapshot {
+    return {
+      schemaVersion: 1,
+      rooms: [...this.rooms.values()].map((aggregate) => ({
+        room: aggregate.room.snapshot(),
+        sessions: structuredClone([...aggregate.sessions.values()]),
+        processedActions: structuredClone([...aggregate.processedActions.entries()]),
+      })),
+    };
+  }
+
+  restore(snapshot: RoomServiceSnapshot) {
+    if (snapshot.schemaVersion !== 1) throw new Error('不支持的服务快照版本');
+    for (const persisted of snapshot.rooms) {
+      if (this.options.now() - persisted.room.updatedAt > this.roomTtlMs) continue;
+      const room = PartyRoom.restore(persisted.room);
+      room.markAllDisconnected(this.options.now());
+      const sessions = new Map(persisted.sessions.map((session) => [session.sessionId, session]));
+      this.rooms.set(room.code, { room, sessions, processedActions: new Map(persisted.processedActions) });
+      for (const session of sessions.values()) this.sessionIndex.set(session.sessionId, session);
+    }
+  }
+
   createRoom(nickname: string, avatar: string): Session {
     let code = '';
-    do {
-      code = Array.from({ length: 6 }, () => ROOM_CODE_ALPHABET[Math.floor(this.random() * ROOM_CODE_ALPHABET.length)]).join('');
-    } while (this.rooms.has(code));
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const candidate = Array.from({ length: 6 }, () => ROOM_CODE_ALPHABET[Math.floor(this.random() * ROOM_CODE_ALPHABET.length)]).join('');
+      if (!this.rooms.has(candidate)) {
+        code = candidate;
+        break;
+      }
+    }
+    if (!code) throw new DomainError('ROOM_CODE_UNAVAILABLE', '房间码暂时用完了，请再试一次');
     const record = this.newRecord(code);
     const room = PartyRoom.create({ code, owner: { id: record.playerId, nickname, avatar }, now: this.options.now() });
     const aggregate: RoomAggregate = { room, sessions: new Map([[record.sessionId, record]]), processedActions: new Map() };
     this.rooms.set(code, aggregate);
     this.sessionIndex.set(record.sessionId, record);
+    this.changed();
     return this.sessionView(record);
   }
 
@@ -68,6 +117,7 @@ export class RoomService {
     aggregate.room.addPlayer({ id: record.playerId, nickname, avatar }, this.options.now());
     aggregate.sessions.set(record.sessionId, record);
     this.sessionIndex.set(record.sessionId, record);
+    this.changed();
     return this.sessionView(record);
   }
 
@@ -90,7 +140,10 @@ export class RoomService {
   }
 
   reconnect(record: SessionRecord) {
-    this.aggregate(record).room.reconnect(record.playerId, this.options.now());
+    const room = this.aggregate(record).room;
+    const version = room.viewFor(record.playerId).version;
+    room.reconnect(record.playerId, this.options.now());
+    if (room.viewFor(record.playerId).version !== version) this.changed();
   }
 
   disconnect(record: SessionRecord) {
@@ -98,7 +151,9 @@ export class RoomService {
     if (!aggregate) return false;
     const before = aggregate.room.viewFor(record.playerId).version;
     aggregate.room.disconnect(record.playerId, this.options.now());
-    return aggregate.room.viewFor(record.playerId).version !== before;
+    const changed = aggregate.room.viewFor(record.playerId).version !== before;
+    if (changed) this.changed();
+    return changed;
   }
 
   startGame(record: SessionRecord, actionId: string, gameId: string, rounds: number) {
@@ -119,17 +174,24 @@ export class RoomService {
     aggregate.sessions.delete(record.sessionId);
     this.sessionIndex.delete(record.sessionId);
     if (aggregate.sessions.size === 0) this.rooms.delete(record.roomCode);
+    this.changed();
   }
 
   tick() {
     const changed: string[] = [];
+    let mutated = false;
     for (const [code, aggregate] of this.rooms) {
-      if (aggregate.room.advanceTime(this.options.now())) changed.push(code);
+      if (aggregate.room.advanceTime(this.options.now())) {
+        changed.push(code);
+        mutated = true;
+      }
       if (this.options.now() - aggregate.room.updatedAt > this.roomTtlMs) {
         for (const session of aggregate.sessions.keys()) this.sessionIndex.delete(session);
         this.rooms.delete(code);
+        mutated = true;
       }
     }
+    if (mutated) this.changed();
     return changed;
   }
 
@@ -151,6 +213,7 @@ export class RoomService {
       const oldest = aggregate.processedActions.keys().next().value;
       if (oldest) aggregate.processedActions.delete(oldest);
     }
+    this.changed();
     return { version, changed: true };
   }
 
@@ -162,5 +225,9 @@ export class RoomService {
 
   private newRecord(roomCode: string): SessionRecord {
     return { sessionId: sessionId(), playerId: playerId(), roomCode, resumeToken: secureToken() };
+  }
+
+  private changed() {
+    this.onChange?.();
   }
 }

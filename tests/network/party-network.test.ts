@@ -109,7 +109,7 @@ describe('公网房间 HTTP 与 WebSocket', () => {
 
     ownerClient.send({ type: 'game-action', actionId: 'vote-owner-0001', action: { type: 'cast-vote', targetId: second.playerId } });
     const secondView = await secondClient.waitForMessage((message) =>
-      message.type === 'room' && (message.room.game as MostLikelyView | null)?.submittedPlayerIds.includes(owner.playerId));
+      message.type === 'room' && (message.room.game as MostLikelyView | null)?.submittedPlayerIds.includes(owner.playerId) === true);
     expect(secondView.type).toBe('room');
     if (secondView.type === 'room') {
       const game = secondView.room.game as MostLikelyView;
@@ -159,10 +159,10 @@ describe('公网房间 HTTP 与 WebSocket', () => {
     unauthenticated.send({ type: 'ping' });
     expect((await unauthenticated.waitFor('error')).code).toBe('AUTH_REQUIRED');
     unauthenticated.sendRaw('{not-json');
-    expect((await unauthenticated.waitForMessage((message) => message.type === 'error' && message.code === 'INVALID_MESSAGE')).code).toBe('INVALID_MESSAGE');
+    expect((await unauthenticated.waitForError('INVALID_MESSAGE')).code).toBe('INVALID_MESSAGE');
 
     unauthenticated.send({ type: 'authenticate', sessionId: owner.sessionId, resumeToken: 'x'.repeat(30) });
-    expect((await unauthenticated.waitForMessage((message) => message.type === 'error' && message.code === 'AUTH_FAILED')).code).toBe('AUTH_FAILED');
+    expect((await unauthenticated.waitForError('AUTH_FAILED')).code).toBe('AUTH_FAILED');
 
     const ownerClient = await connect(owner);
     ownerClient.sendRaw(JSON.stringify({ type: 'start-game', actionId: 'bad-start-0001' }));

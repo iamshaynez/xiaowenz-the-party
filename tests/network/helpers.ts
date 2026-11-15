@@ -30,6 +30,12 @@ export class PartyTestClient {
     this.socket.send(message);
   }
 
+  async waitForError(code: string) {
+    const message = await this.waitForMessage((candidate) => candidate.type === 'error' && candidate.code === code);
+    if (message.type !== 'error') throw new Error('预期错误消息');
+    return message;
+  }
+
   async waitFor<T extends ServerMessage['type']>(type: T, timeoutMs = 2_000) {
     return this.waitForMessage((message) => message.type === type, timeoutMs) as Promise<Extract<ServerMessage, { type: T }>>;
   }

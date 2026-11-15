@@ -1,0 +1,21 @@
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  fullyParallel: false,
+  workers: 1,
+  timeout: 45_000,
+  expect: { timeout: 8_000 },
+  reporter: [['list'], ['html', { open: 'never' }]],
+  use: {
+    baseURL: 'http://127.0.0.1:4173',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
+  webServer: {
+    command: 'pnpm --filter @party/web build && PORT=4173 pnpm --filter @party/server start',
+    url: 'http://127.0.0.1:4173/api/health',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
+});

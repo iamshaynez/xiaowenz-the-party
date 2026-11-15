@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
-import { DomainError } from '@party/room';
 import { RoomService } from './rooms/room-service';
+import { RoomPersistence } from './rooms/persistence';
 import { RealtimeGateway } from './realtime/gateway';
 import { mapDomainError, registerHttpRoutes } from './http/routes';
 import type { ServerOptions } from './config';
@@ -14,8 +14,12 @@ interface RateWindow {
 }
 
 export async function buildServer(options: ServerOptions) {
-  const app = fastify({ logger: options.logger, bodyLimit: 16_384 });
+  const app = fastify({ logger: options.logger, bodyLimit: 16_384, trustProxy: options.trustProxy ?? false });
   const rooms = new RoomService({ now: options.now });
+  const persistence = options.dataFile
+    ? new RoomPersistence(rooms, options.dataFile, (error) => app.log.error(error, 'Failed to persist rooms'))
+    : null;
+  await persistence?.load();
   const gateway = new RealtimeGateway(rooms, options);
   const httpRates = new Map<string, RateWindow>();
 
@@ -56,7 +60,8 @@ export async function buildServer(options: ServerOptions) {
   app.setErrorHandler((error, request, reply) => {
     const domainError = mapDomainError(error);
     if (domainError) return reply.status(domainError.status).send(domainError.body);
-    const statusCode = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : 500;
+    const candidateStatus = (error as { statusCode?: unknown }).statusCode;
+    const statusCode = typeof candidateStatus === 'number' ? candidateStatus : 500;
     if (statusCode >= 500) request.log.error(error);
     return reply.status(statusCode).send({
       code: statusCode === 400 ? 'INVALID_INPUT' : statusCode === 413 ? 'PAYLOAD_TOO_LARGE' : 'INTERNAL_ERROR',
@@ -76,6 +81,7 @@ export async function buildServer(options: ServerOptions) {
 
   app.addHook('onClose', async () => {
     gateway.close();
+    await persistence?.close();
     httpRates.clear();
   });
   return app;

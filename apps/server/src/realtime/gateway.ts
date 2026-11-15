@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import type { RawData } from 'ws';
 import type { FastifyRequest } from 'fastify';
 import { clientMessageSchema } from '@party/protocol';
-import type { ClientMessage, ServerMessage } from '@party/protocol';
+import type { ServerMessage } from '@party/protocol';
 import { DomainError } from '@party/room';
 import { RoomService } from '../rooms/room-service';
 import type { SessionRecord } from '../rooms/room-service';
@@ -18,6 +18,8 @@ interface ConnectionState {
   session: SessionRecord;
   windowStartedAt: number;
   messageCount: number;
+  lastSeenAt: number;
+  lastPingAt: number;
 }
 
 export class RealtimeGateway {
@@ -29,6 +31,7 @@ export class RealtimeGateway {
     private readonly options: GatewayOptions,
   ) {
     this.ticker = setInterval(() => {
+      this.maintainConnections();
       for (const code of this.rooms.tick()) this.broadcast(code);
     }, options.tickIntervalMs);
     this.ticker.unref();
@@ -48,6 +51,10 @@ export class RealtimeGateway {
     }, 5_000);
     authenticationTimer.unref();
 
+    socket.on('pong', () => {
+      const connection = this.connections.get(socket);
+      if (connection) connection.lastSeenAt = this.options.now();
+    });
     socket.on('message', (data) => {
       queue = queue.then(() => this.handleRawMessage(socket, data)).catch(() => {
         this.sendError(socket, 'INTERNAL_ERROR', '服务暂时开小差了，请稍后重试');
@@ -80,12 +87,14 @@ export class RealtimeGateway {
   }
 
   private async handleRawMessage(socket: WebSocket, data: RawData) {
-    if (data.byteLength > 4_096) {
+    const serialized = data.toString();
+    if (Buffer.byteLength(serialized) > 4_096) {
       this.sendError(socket, 'MESSAGE_TOO_LARGE', '消息过大');
       socket.close(1009, 'Message too large');
       return;
     }
     const connection = this.connections.get(socket);
+    if (connection) connection.lastSeenAt = this.options.now();
     if (connection && !this.consumeRateAllowance(connection)) {
       this.sendError(socket, 'RATE_LIMITED', '操作太频繁了，歇一小会儿');
       return;
@@ -93,7 +102,7 @@ export class RealtimeGateway {
 
     let parsedJson: unknown;
     try {
-      parsedJson = JSON.parse(data.toString());
+      parsedJson = JSON.parse(serialized);
     } catch {
       this.sendError(socket, 'INVALID_MESSAGE', '消息不是有效的 JSON');
       return;
@@ -116,6 +125,8 @@ export class RealtimeGateway {
           session,
           windowStartedAt: this.options.now(),
           messageCount: 1,
+          lastSeenAt: this.options.now(),
+          lastPingAt: this.options.now(),
         });
         this.rooms.reconnect(session);
         this.send(socket, { type: 'ready', session: this.rooms.sessionView(session) });
@@ -167,6 +178,20 @@ export class RealtimeGateway {
       }
     } catch (error) {
       this.handleError(socket, error, message.actionId);
+    }
+  }
+
+  private maintainConnections() {
+    const now = this.options.now();
+    for (const [socket, connection] of this.connections) {
+      if (now - connection.lastSeenAt >= 65_000 && now - connection.lastPingAt >= 10_000) {
+        socket.terminate();
+        continue;
+      }
+      if (now - connection.lastPingAt >= 30_000 && socket.readyState === WebSocket.OPEN) {
+        connection.lastPingAt = now;
+        socket.ping();
+      }
     }
   }
 
