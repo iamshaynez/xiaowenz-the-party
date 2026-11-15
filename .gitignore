@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+playwright-report/
+test-results/
+.vite/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+.video_agent/
+out/
