@@ -1,0 +1,14 @@
+services:
+  party:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+    volumes:
+      - party-data:/data
+    restart: unless-stopped
+
+volumes:
+  party-data:
