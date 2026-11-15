@@ -1,0 +1,45 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-party-main
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: [self-hosted, hk-build]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 登录 ACR（共享 runner 安全重试）
+        run: |
+          ok=0
+          for i in 1 2 3 4 5; do
+            echo "${{ secrets.ACR_PASSWORD }}" | docker login "${{ secrets.ACR_REGISTRY }}" -u "${{ secrets.ACR_USERNAME }}" --password-stdin && ok=1 && break
+            echo "login 失败，第 $i 次重试"; sleep 5
+          done
+          test "$ok" = 1
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.ACR_REGISTRY }}/xiaowenz/the-party:${{ github.sha }}
+            ${{ secrets.ACR_REGISTRY }}/xiaowenz/the-party:main
+
+      - name: 部署到 hk-dev
+        run: bash deploy/hk-dev/deploy.sh
+
+      - name: 公网 HTTPS 与 WSS 冒烟
+        run: node scripts/smoke-public.mjs https://party.xiaowenz.com
