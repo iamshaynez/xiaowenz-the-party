@@ -12,3 +12,6 @@ test-results/
 .DS_Store
 .video_agent/
 out/
+artifacts/
+data/
+*.tmp
