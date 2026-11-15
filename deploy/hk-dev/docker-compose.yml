@@ -1,0 +1,26 @@
+services:
+  party:
+    image: ${ACR_REGISTRY}/xiaowenz/the-party:${PARTY_TAG:-main}
+    container_name: party
+    init: true
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      HOST: "0.0.0.0"
+      PUBLIC_ORIGIN: "https://party.xiaowenz.com"
+      TRUST_PROXY: "true"
+      PARTY_DATA_FILE: "/data/party.json"
+    ports:
+      - "127.0.0.1:18093:3000"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+networks:
+  default:
+    name: apps
+    external: true

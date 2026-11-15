@@ -84,7 +84,11 @@ packages/
 └── room/               # 房间生命周期与游戏组合根
 ```
 
-详细设计见 [架构文档](docs/ARCHITECTURE.md)、[协议文档](docs/PROTOCOL.md) 和 [测试规范](docs/TESTING.md)。
+详细设计见 [架构文档](docs/ARCHITECTURE.md)、[协议文档](docs/PROTOCOL.md)、[测试规范](docs/TESTING.md) 和 [生产部署](docs/DEPLOYMENT.md)。
+
+## 生产自动部署
+
+生产环境为 <https://party.xiaowenz.com>。release PR 合并到 `main` 后，`deploy-main.yml` 会通过 hk-dev 上的 `hk-build` runner 构建并推送 ACR 镜像，然后更新容器并执行 HTTPS/WSS 冒烟。详见 [hk-dev 生产部署](docs/DEPLOYMENT.md)。
 
 ## Docker 部署
 
