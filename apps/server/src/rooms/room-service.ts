@@ -35,6 +35,7 @@ interface RoomServiceOptions {
   now: () => number;
   random?: () => number;
   roomTtlMs?: number;
+  onWarning?: (message: string) => void;
 }
 
 const secureToken = () => `rt_${randomBytes(24).toString('base64url')}`;
@@ -52,11 +53,13 @@ export class RoomService {
   private readonly sessionIndex = new Map<string, SessionRecord>();
   private readonly random: () => number;
   private readonly roomTtlMs: number;
+  private readonly onWarning: (message: string) => void;
   private onChange: (() => void) | null = null;
 
   constructor(private readonly options: RoomServiceOptions) {
     this.random = options.random ?? Math.random;
     this.roomTtlMs = options.roomTtlMs ?? 2 * 60 * 60 * 1000;
+    this.onWarning = options.onWarning ?? (() => {});
   }
 
   get activeRooms() {
@@ -82,6 +85,10 @@ export class RoomService {
     if (snapshot.schemaVersion !== 1) throw new Error('不支持的服务快照版本');
     for (const persisted of snapshot.rooms) {
       if (this.options.now() - persisted.room.updatedAt > this.roomTtlMs) continue;
+      if (persisted.room.game?.id === 'can-drive') {
+        this.onWarning('Skipping removed can-drive room snapshot');
+        continue;
+      }
       const room = PartyRoom.restore(persisted.room);
       room.advanceTime(this.options.now(), this.random);
       room.markAllDisconnected(this.options.now());

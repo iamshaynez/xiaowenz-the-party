@@ -5,9 +5,9 @@
 ## 1. 项目速览
 
 - **产品**：碰头 · PARTY，轻量、移动端优先的实时聚会游戏平台。
-- **当前游戏**：`most-likely`（谁最可能）、`piggy-bank`（存钱罐）、`can-drive`（这车能开？）；房间码或二维码加入，无需注册或下载，不同游戏支持 2–12 人。
+- **当前游戏**：`most-likely`（谁最可能）与 `piggy-bank`（存钱罐），均为 3–12 人，通过房间码或二维码加入，无需注册或下载。
 - **生产地址**：<https://party.xiaowenz.com>。
-- **技术栈**：Node.js 22+、TypeScript、React、Vite、Fastify、WebSocket、Three.js、pnpm monorepo、Vitest、Playwright。
+- **技术栈**：Node.js 22+、TypeScript、React、Vite、Fastify、WebSocket、pnpm monorepo、Vitest、Playwright。
 - **核心形态**：浏览器只发送玩家意图，Node 单进程维护按房间隔离的权威状态机，并向每名玩家发送裁剪后的视图。
 
 ## 2. 环境与常用命令
@@ -24,13 +24,13 @@ pnpm dev                 # Web: http://localhost:5173，Server: 3000
 | --- | --- |
 | `pnpm test` | 业务规则与真实 HTTP/WebSocket 网络测试 |
 | `pnpm test:ui` | React 组件行为测试 |
-| `pnpm test:e2e` | 本地生产模式服务 + 多个隔离浏览器的完整对局 |
+| `pnpm test:e2e` | 本地生产模式服务 + 三个隔离浏览器的完整对局 |
 | `pnpm test:coverage` | 业务/网络测试与覆盖率门禁 |
 | `pnpm typecheck` | E2E 与全部工作区的严格 TypeScript 检查 |
 | `pnpm build` | 全部工作区构建 |
 | `pnpm check` | typecheck、coverage、UI、build |
 | `pnpm check:all` | 完整 CI 门禁：`pnpm check` + 本地 E2E |
-| `pnpm exec vitest run tests/business/can-drive.test.ts` | 运行车辆组装、展示、颁奖与恢复的规则回归测试 |
+| `pnpm exec vitest run tests/business/most-likely.test.ts` | 运行当前游戏的规则回归测试 |
 
 首次运行浏览器 E2E 前执行 `pnpm exec playwright install chromium`。
 
@@ -58,7 +58,7 @@ docs/                  架构、协议、测试、分支和部署规范
 
 修改时遵守以下边界：
 
-- 游戏规则放在 `packages/games` 的纯状态机中，不访问 DOM、WebSocket、数据库或系统时钟；车辆 ShowPlan 与模拟同样不得引用 Three.js。
+- 游戏规则放在 `packages/games` 的纯状态机中，不访问 DOM、WebSocket、数据库或系统时钟。
 - 共享消息和动作类型放在 `packages/protocol`，客户端、服务端不得各自定义一套不兼容结构。
 - 房间身份、房主权限、加入/离开和连接状态放在 `packages/room` 或 server 房间服务，不散落到游戏组件。
 - Web 组件通过 `PartyServices` 访问后端，不直接创建 WebSocket。
@@ -142,8 +142,7 @@ git branch -D feat/<short-name>  # squash merge 后，确认 PR 已合并再删�
 当前游戏：
 
 - `most-likely`：每轮秘密投给一名其他参与者，可改票，不能投自己；全员提交或 60 秒后揭晓，最高票得 1 分，平票共同得分，最后按累计分数排行。UI 提供 3、5、8 轮，房主负责开局、推进和再来一局。
-- `piggy-bank`：3–12 人，秘密守护或砸罐、有限锤子、随机事件和保密落幕轮，服务端自动推进。
-- `can-drive`：2–6 人，五类各 8 个零件，共 40 个；全员准备或组装截止后逐车进行 40 秒多环境展示，再逐车颁奖。没有分数和名次，最终全队合影，房主可保留车辆重开。
+- `piggy-bank`：3–12 人，秘密选择守护或砸罐，锤子有限；砸罐者平分罐中金币，守护者获得安慰币。随机事件改变结算，实际落幕轮保密，余币终局平分。
 
 `most-likely` 题库位于 `packages/games/src/prompts.ts`，当前为 **100 道静态题、10 个类别**；每类编辑结构为 **6 道喜剧向 + 4 道轻松向**。修改题库时：
 
@@ -152,7 +151,7 @@ git branch -D feat/<short-name>  # squash merge 后，确认 PR 已合并再删�
 - 保留 100 题及 60/40 编辑结构，除非需求明确要求改变；洗牌和同局不重复逻辑位于游戏状态机。
 - 修改后校验总数、唯一性和规则测试。
 
-不要只凭 UI 文案推断实际规则，以状态机和测试为准。车辆零件、环境、动画和镜头的新增内容必须遵守 `docs/CAR_ASSETS.md`，不得让 Three.js 对象进入领域状态或逐帧进入房间网络消息。旁观者下一局加入、房主离线后的推进、断线时未确认动作的 pending 状态等仍是薄弱边界；触及这些区域时先补回归测试。
+不要只凭 UI 文案推断实际规则，以状态机和测试为准。旁观者下一局加入、房主离线后的推进、断线时未确认动作的 pending 状态等仍是薄弱边界；触及这些区域时先补回归测试。
 
 ## 10. 交付前检查清单
 
@@ -171,6 +170,5 @@ git branch -D feat/<short-name>  # squash merge 后，确认 PR 已合并再删�
 - `docs/ARCHITECTURE.md`：权威状态机、操作路径、快照、恢复与扩容边界
 - `docs/PROTOCOL.md`：HTTP/WebSocket 消息、Session、隐私与错误码
 - `docs/TESTING.md`：TDD、测试分层、覆盖率与线上验收
-- `docs/CAR_ASSETS.md`：车辆坐标、挂点、运动、动画、环境与奖项内容标准
 - `docs/BRANCHING.md`：分支、PR、合并、发布和本地清理流程
 - `docs/DEPLOYMENT.md`：生产部署、环境变量、更新与冒烟验证

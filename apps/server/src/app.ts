@@ -15,7 +15,7 @@ interface RateWindow {
 
 export async function buildServer(options: ServerOptions) {
   const app = fastify({ logger: options.logger, bodyLimit: 16_384, trustProxy: options.trustProxy ?? false });
-  const rooms = new RoomService({ now: options.now, random: options.random ?? Math.random });
+  const rooms = new RoomService({ now: options.now, random: options.random ?? Math.random, onWarning: (message) => app.log.warn(message) });
   const persistence = options.dataFile
     ? new RoomPersistence(rooms, options.dataFile, (error) => app.log.error(error, 'Failed to persist rooms'))
     : null;
