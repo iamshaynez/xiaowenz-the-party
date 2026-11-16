@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@party/protocol': fileURLToPath(new URL('../../packages/protocol/src/index.ts', import.meta.url)),
+      '@party/games': fileURLToPath(new URL('../../packages/games/src/index.ts', import.meta.url)),
     },
   },
   server: {

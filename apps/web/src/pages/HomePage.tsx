@@ -51,7 +51,7 @@ export function HomePage({ services }: { services: PartyServices }) {
           <h1>把朋友凑在一起，<br /><span>快乐即刻开场。</span></h1>
           <p>一个房间码，一群合拍的人。手机就是手柄，<br className="desktop-only" />不用注册，也不用等人下载 App。</p>
           <div className="hero__proof">
-            <span><Zap size={16} />实时联机</span><span><Users size={16} />3–12 人</span><span><PartyPopper size={16} />欢乐破冰</span>
+            <span><Zap size={16} />实时联机</span><span><Users size={16} />2 人起玩</span><span><PartyPopper size={16} />欢乐破冰</span>
           </div>
           <div className="hero-doodle" aria-hidden="true">
             <span className="hero-doodle__emoji hero-doodle__emoji--one">🦊</span>
