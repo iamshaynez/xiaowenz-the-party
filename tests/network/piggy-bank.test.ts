@@ -196,7 +196,7 @@ describe('存钱罐服务重启恢复', () => {
     directory = await mkdtemp(join(tmpdir(), 'party-piggy-'));
     dataFile = join(directory, 'party.json');
     await app.close();
-    app = await buildServer({ logger: false, now: () => now, tickIntervalMs: 10, messageRateLimit: 100, messageRateWindowMs: 1_000, dataFile });
+    app = await buildServer({ logger: false, now: () => now, random: () => 0.1, tickIntervalMs: 10, messageRateLimit: 100, messageRateWindowMs: 1_000, dataFile });
     await app.listen({ host: '127.0.0.1', port: 0 });
     const address = app.server.address();
     if (!address || typeof address === 'string') throw new Error('测试服务没有监听端口');
@@ -220,7 +220,7 @@ describe('存钱罐服务重启恢复', () => {
 
     await app.close();
     now += 5_000;
-    app = await buildServer({ logger: false, now: () => now, tickIntervalMs: 10, messageRateLimit: 100, messageRateWindowMs: 1_000, dataFile });
+    app = await buildServer({ logger: false, now: () => now, random: () => 0.1, tickIntervalMs: 10, messageRateLimit: 100, messageRateWindowMs: 1_000, dataFile });
     await app.listen({ host: '127.0.0.1', port: 0 });
     const restarted = app.server.address();
     if (!restarted || typeof restarted === 'string') throw new Error('测试服务没有监听端口');
