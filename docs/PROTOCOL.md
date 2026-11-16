@@ -50,7 +50,7 @@
 { "type": "authenticate", "sessionId": "s_…", "resumeToken": "rt_…" }
 ```
 
-开局（`gameId` 取 `most-likely`、`piggy-bank` 或 `can-drive`；轮数在 1–8 间，具体可选值由各游戏决定，如「存钱罐」支持 4/6/8，「这车能开？」固定为 1 次完整展示）：
+开局（`gameId` 取 `most-likely` 或 `piggy-bank`；轮数在 1–8 间，具体可选值由各游戏决定，如「存钱罐」支持 4/6/8）：
 
 ```json
 { "type": "start-game", "actionId": "web-uuid", "gameId": "most-likely", "rounds": 3 }
@@ -68,14 +68,6 @@
 
 ```json
 { "type": "game-action", "actionId": "web-uuid", "action": { "type": "choose", "choice": "smash" } }
-{ "type": "play-again" }
-```
-
-「这车能开？」（`slot` 为 `driver / motion / front / rear / roof` 之一；测试与颁奖由服务端自动推进）：
-
-```json
-{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "select-car-part", "slot": "driver", "partId": "cat" } }
-{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "submit-car" } }
 { "type": "play-again" }
 ```
 
@@ -98,8 +90,6 @@
 
 「存钱罐」的抉择同理：他人的 `ownChoice`、保密的落幕轮 `finalRound` 与暗牌事件（纸糊罐、警报轮）在揭晓前不会出现在任何玩家的视图里；盲罐轮期间 `pot` 为 `null`。
 
-「这车能开？」组装阶段只向本人发送 `ownBuild`，其他玩家只能看到准备状态。展示视图只包含当前公开车辆的可恢复 ShowPlan、绝对开始／结束时间和已经揭晓的奖项；完整未来计划、未来奖项与展示统计不进入客户端。ShowPlan 只包含环境、事件和公开参数，不逐帧广播坐标。
-
 ## 常见错误码
 
 - `AUTH_REQUIRED` / `AUTH_FAILED` / `AUTH_TIMEOUT`
@@ -108,4 +98,4 @@
 - `ROOM_NOT_FOUND` / `ROOM_FULL` / `NICKNAME_TAKEN`
 - `OWNER_ONLY` / `NOT_A_PARTICIPANT` / `INVALID_PHASE`
 - `SELF_VOTE` / `INVALID_TARGET` / `NOT_ENOUGH_PLAYERS`
-- `INVALID_ACTION` / `INVALID_ROUNDS` / `NO_HAMMER` / `INVALID_PART`
+- `INVALID_ACTION` / `INVALID_ROUNDS` / `NO_HAMMER`

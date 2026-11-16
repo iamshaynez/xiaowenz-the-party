@@ -47,34 +47,6 @@ describe('派对大厅', () => {
     expect(onStart).toHaveBeenCalledWith('piggy-bank', 6);
   });
 
-  it('怪车游戏两人即可开局，不需要选择轮数', async () => {
-    const user = userEvent.setup();
-    const onStart = vi.fn();
-    render(<Lobby room={{ ...room, players: players.slice(0, 2) }} playerId="owner" onStart={onStart} onLeave={vi.fn()} pending={false} />);
-
-    await user.click(screen.getByRole('radio', { name: /这车能开/ }));
-    expect(screen.queryByLabelText('游戏轮数')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '开始游戏' })).toBeEnabled();
-    await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    expect(onStart).toHaveBeenCalledWith('can-drive', 1);
-  });
-
-  it('超过怪车游戏六人上限时明确禁用开局', async () => {
-    const user = userEvent.setup();
-    const manyPlayers: RoomView['players'] = Array.from({ length: 7 }, (_, index) => ({
-      id: index === 0 ? 'owner' : `p${index + 1}`,
-      nickname: `玩家${index + 1}`,
-      avatar: '🦊',
-      role: 'player',
-      connected: true,
-    }));
-    render(<Lobby room={{ ...room, players: manyPlayers }} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
-
-    await user.click(screen.getByRole('radio', { name: /这车能开/ }));
-    expect(screen.getByRole('button', { name: '开始游戏' })).toBeDisabled();
-    expect(screen.getByText('这款游戏最多 6 位玩家，请先换一款适合当前人数的游戏')).toBeInTheDocument();
-  });
-
   it('普通玩家不能开局，会明确看到正在等待房主', () => {
     render(<Lobby room={room} playerId="p2" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
     expect(screen.getByText('等房主开局，可以先热个身。')).toBeInTheDocument();
