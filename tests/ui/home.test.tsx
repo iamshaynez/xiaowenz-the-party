@@ -49,8 +49,6 @@ describe('玩家进入派对', () => {
     expect(screen.getByRole('radio', { name: /谁最可能/ })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText('破冰')).toBeInTheDocument();
     expect(screen.getByText('儿童')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /这车能开/ })).toBeInTheDocument();
-    expect(screen.getByText('2 人起玩')).toBeInTheDocument();
 
     await user.click(screen.getByRole('radio', { name: /存钱罐/ }));
     expect(screen.getByText('开局游戏')).toBeInTheDocument();

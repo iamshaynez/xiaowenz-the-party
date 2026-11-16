@@ -37,11 +37,6 @@ describe('公网 HTTP 边界', () => {
         description: '一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。',
         tags: ['家庭', '儿童', '反转'], roundsOptions: [4, 6, 8], minPlayers: 3, maxPlayers: 12,
       },
-      {
-        id: 'can-drive', version: 1, name: '这车能开？', emoji: '🚗',
-        description: '用离谱零件拼出梦想座驾，看它接受四十秒认真又不正经的路测。',
-        tags: ['创意', '搞笑', '展示'], roundsOptions: [1], minPlayers: 2, maxPlayers: 6,
-      },
     ]);
     expect(config.avatars).toContain('🦊');
     expect(JSON.stringify(config)).not.toContain('resumeToken');
