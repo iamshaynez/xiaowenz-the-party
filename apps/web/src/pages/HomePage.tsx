@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, PartyPopper, Plus, ScanLine, Sparkles, Users, X, Zap } from 'lucide-react';
+import { ArrowRight, Check, PartyPopper, Plus, ScanLine, Sparkles, Users, X, Zap } from 'lucide-react';
+import type { GameId } from '@party/protocol';
+import { GAMES } from '@party/games';
 import { Brand } from '../components/Brand';
 import { ProfileForm } from '../components/ProfileForm';
 import { saveSession } from '../hooks/usePartyRoom';
+import { readSelectedGame, writeRoomGamePreference, writeSelectedGame } from '../gamePreference';
 import type { PartyServices, ProfileInput } from '../services/types';
 
 export function HomePage({ services }: { services: PartyServices }) {
@@ -13,6 +16,12 @@ export function HomePage({ services }: { services: PartyServices }) {
   const [code, setCode] = useState('');
   const [profile, setProfile] = useState<ProfileInput>({ nickname: '', avatar: '🦊' });
   const [error, setError] = useState<string | null>(null);
+  const [selectedGame, setSelectedGame] = useState<GameId>(readSelectedGame);
+
+  const selectGame = (gameId: GameId) => {
+    setSelectedGame(gameId);
+    writeSelectedGame(gameId);
+  };
 
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -22,9 +31,10 @@ export function HomePage({ services }: { services: PartyServices }) {
     try {
       const session = await services.createRoom({ ...profile, nickname: profile.nickname.trim() });
       saveSession(session);
+      writeRoomGamePreference(session.roomCode, selectedGame);
       navigate(`/r/${session.roomCode}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '创建失败，请稍后再试');
+      setError(cause instanceof Error ? cause.message : '创建失败，请稍后再重试');
     } finally {
       setSubmitting(false);
     }
@@ -76,6 +86,45 @@ export function HomePage({ services }: { services: PartyServices }) {
           <p className="entry-panel__footnote">房间码在朋友的派对大厅里</p>
         </section>
       </div>
+
+      <section className="home-games" aria-labelledby="game-shelf-title">
+        <div className="home-games__heading">
+          <div>
+            <div className="eyebrow"><Sparkles size={15} />GAME SHELF</div>
+            <h2 id="game-shelf-title">今晚的游戏货架</h2>
+          </div>
+          <span className="home-games__hint">选一个开局游戏，进房后还能在大厅换</span>
+        </div>
+        <div className="home-games__grid" role="radiogroup" aria-label="开局游戏">
+          {GAMES.map((game) => {
+            const active = selectedGame === game.id;
+            return (
+              <button
+                key={game.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={`home-game-card ${active ? 'is-active' : ''}`}
+                onClick={() => selectGame(game.id as GameId)}
+              >
+                <span className="home-game-card__emoji">{game.emoji}</span>
+                <div className="home-game-card__main">
+                  <strong>{game.name}</strong>
+                  <p>{game.description}</p>
+                  <div className="home-game-card__tags">
+                    {game.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  </div>
+                </div>
+                <div className="home-game-card__foot">
+                  <span className="home-game-card__meta"><Users size={13} />{game.minPlayers}–{game.maxPlayers} 人</span>
+                  {active && <span className="home-game-card__check"><Check size={14} />开局游戏</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <footer className="home-footer"><span>碰头 PARTY · v0.1</span><span>为每一个“下次一定”的今晚而做</span></footer>
 
       {creating && (

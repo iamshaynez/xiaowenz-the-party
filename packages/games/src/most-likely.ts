@@ -119,6 +119,8 @@ export const mostLikelyGame: GameDefinition<MostLikelyState, MostLikelyView> = {
   version: 1,
   name: '谁最可能',
   emoji: '🗳️',
+  description: '一道题，一票默契。看看在朋友眼里，谁是那个“十有八九”的人。',
+  tags: ['破冰', '默契', '轻松'],
   roundsOptions: [3, 5, 8],
   minPlayers: 3,
   maxPlayers: 12,

@@ -25,6 +25,14 @@ describe('派对大厅', () => {
     expect(onStart).toHaveBeenCalledWith('most-likely', 5);
   });
 
+  it('房主在首页选过的游戏会成为大厅默认选项', () => {
+    window.localStorage.setItem('party.game.ABC234', 'piggy-bank');
+    render(<Lobby room={room} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
+    expect(screen.getByRole('radio', { name: /存钱罐/ })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('button', { name: '4 轮' }).className).toContain('is-active');
+    expect(screen.getByText('家庭')).toBeInTheDocument();
+  });
+
   it('房主可以切换到存钱罐，轮数选项跟随游戏变化', async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
