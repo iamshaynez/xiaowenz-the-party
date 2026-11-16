@@ -43,7 +43,8 @@ pnpm --filter @party/server start
 ```bash
 pnpm test            # 业务规则 + 真实 HTTP/WebSocket 网络测试
 pnpm test:ui         # 从用户视角组织的 React 组件测试
-pnpm test:e2e        # 三个独立浏览器完成三轮真实对局
+pnpm test:e2e        # 本地：三个独立浏览器完成三轮真实对局
+pnpm test:e2e:online # 线上：直接验收 party.xiaowenz.com，无需多部手机
 pnpm test:coverage   # 覆盖率阈值：语句/函数/行 85%，分支 80%
 pnpm typecheck       # 严格 TypeScript 检查（含测试）
 pnpm build           # 全部工作区检查 + Web 生产构建
@@ -60,7 +61,7 @@ tests/
 └── e2e/        # 多浏览器完整聚会流程
 ```
 
-首次运行 E2E 前执行 `pnpm exec playwright install chromium`。
+首次运行 E2E 前执行 `pnpm exec playwright install chromium`。线上验收使用三个隔离浏览器上下文，不启动本地服务；可用 `pnpm test:e2e:online -- --headed` 观看自动操作。测试会创建真实房间，断开后由服务端按闲置规则自动过期。
 
 ## 工程结构
 
