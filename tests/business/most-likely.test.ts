@@ -109,6 +109,7 @@ describe('「谁最可能」完整对局', () => {
 
     room.act('owner', { type: 'play-again' }, { now: NOW, rng });
     expect(gameView(room)).toMatchObject({ phase: 'voting', round: 1 });
+    expect(room.viewFor('owner').phase).toBe('playing');
     expect(gameView(room).scores).toEqual({ owner: 0, p2: 0, p3: 0 });
   });
 

@@ -83,6 +83,7 @@ export class RoomService {
     for (const persisted of snapshot.rooms) {
       if (this.options.now() - persisted.room.updatedAt > this.roomTtlMs) continue;
       const room = PartyRoom.restore(persisted.room);
+      room.advanceTime(this.options.now(), this.random);
       room.markAllDisconnected(this.options.now());
       const sessions = new Map(persisted.sessions.map((session) => [session.sessionId, session]));
       this.rooms.set(room.code, { room, sessions, processedActions: new Map(persisted.processedActions) });

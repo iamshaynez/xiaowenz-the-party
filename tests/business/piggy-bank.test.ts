@@ -391,12 +391,14 @@ describe('「存钱罐」收尾与恢复', () => {
       step(room, clock, rngScript(0.1));
     }
     expect(gameView(room).phase).toBe('finished');
+    expect(room.viewFor('owner').phase).toBe('finished');
 
     expect(() => room.act('p2', { type: 'play-again' }, { now: NOW, rng: rngScript(0.1) }))
       .toThrowError(expect.objectContaining({ code: 'OWNER_ONLY' }));
     expect(() => room.act('owner', { type: 'play-again' }, { now: NOW, rng: rngScript(0.1) }))
       .not.toThrow();
     expect(gameView(room)).toMatchObject({ phase: 'choosing', round: 1, pot: 3 });
+    expect(room.viewFor('owner').phase).toBe('playing');
     expect(gameView(room).coins).toEqual({ owner: 0, p2: 0, p3: 0 });
     expect(gameView(room).hammers).toEqual({ owner: 2, p2: 2, p3: 2 });
   });
