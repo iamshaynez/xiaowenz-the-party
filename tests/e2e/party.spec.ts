@@ -116,6 +116,11 @@ test('三位真实玩家完成一局存钱罐，随机事件与随机落幕下�
 
   try {
     await owner.page.goto('/');
+    await expect(owner.page.getByRole('heading', { name: '今晚的游戏货架' })).toBeVisible();
+    await owner.page.getByRole('radio', { name: /存钱罐/ }).click();
+    await expect(owner.page.getByText('开局游戏', { exact: true })).toBeVisible();
+    await owner.page.screenshot({ path: 'artifacts/home-shelf-desktop.png', fullPage: true, animations: 'disabled' });
+
     await owner.page.getByRole('button', { name: '创建派对' }).click();
     await owner.page.getByLabel('你的昵称').fill('房主小文');
     await owner.page.getByRole('button', { name: '创建并进入房间' }).click();
@@ -125,7 +130,7 @@ test('三位真实玩家完成一局存钱罐，随机事件与随机落幕下�
     await join(third.page, code, '蛙蛙');
     await expect(owner.page.getByText('3 / 12 位朋友')).toBeVisible();
 
-    await owner.page.getByRole('radio', { name: /存钱罐/ }).click();
+    await expect(owner.page.getByRole('radio', { name: /存钱罐/ })).toHaveAttribute('aria-checked', 'true');
     await expect(owner.page.getByText('一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。')).toBeVisible();
     await owner.page.screenshot({ path: 'artifacts/piggy-lobby-desktop.png', fullPage: true, animations: 'disabled' });
     await owner.page.getByRole('button', { name: '开始游戏' }).click();

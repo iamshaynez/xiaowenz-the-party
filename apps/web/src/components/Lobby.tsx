@@ -5,6 +5,7 @@ import type { GameId, RoomView } from '@party/protocol';
 import { GAMES } from '@party/games';
 import { Brand } from './Brand';
 import { PlayerGrid } from './PlayerGrid';
+import { readRoomGamePreference } from '../gamePreference';
 
 interface LobbyProps {
   room: RoomView;
@@ -14,27 +15,21 @@ interface LobbyProps {
   pending: boolean;
 }
 
-const GAME_DETAILS: Record<GameId, { blurb: string; rules: string[] }> = {
-  'most-likely': {
-    blurb: '一道题，一票默契。看看在朋友眼里，谁是那个“十有八九”的人。',
-    rules: ['3–12 人', '不能投自己', '平票都得分'],
-  },
-  'piggy-bank': {
-    blurb: '一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。',
-    rules: ['3–12 人', '锤子有限', '小心纸糊罐'],
-  },
+const GAME_RULES: Record<GameId, string[]> = {
+  'most-likely': ['3–12 人', '不能投自己', '平票都得分'],
+  'piggy-bank': ['3–12 人', '锤子有限', '小心纸糊罐'],
 };
 
 export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps) {
-  const [gameId, setGameId] = useState<GameId>('most-likely');
-  const [rounds, setRounds] = useState(3);
+  const [gameId, setGameId] = useState<GameId>(() => readRoomGamePreference(room.code));
+  const [rounds, setRounds] = useState(() => GAMES.find((game) => game.id === readRoomGamePreference(room.code))?.roundsOptions[0] ?? 3);
   const [qrUrl, setQrUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const isOwner = room.ownerId === playerId;
   const playerCount = room.players.filter((player) => player.role === 'player').length;
   const selected = GAMES.find((game) => game.id === gameId) ?? GAMES[0]!;
   const selectedId = selected.id as GameId;
-  const details = GAME_DETAILS[selectedId];
+  const rules = GAME_RULES[selectedId];
 
   useEffect(() => {
     void QRCode.toDataURL(window.location.href, {
@@ -115,9 +110,12 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
           <div className="game-setup-card__body">
             <span className="mini-label">{selectedId === 'most-likely' ? "WHO'S MOST LIKELY" : 'PIGGY BANK'}</span>
             <h2>{selected.name}</h2>
-            <p>{details.blurb}</p>
+            <p>{selected.description}</p>
+            <div className="game-tags">
+              {selected.tags.map((tag) => <span key={tag}>{tag}</span>)}
+            </div>
             <div className="game-rules">
-              {details.rules.map((rule) => <span key={rule}>{rule}</span>)}
+              {rules.map((rule) => <span key={rule}>{rule}</span>)}
             </div>
             {isOwner ? (
               <>

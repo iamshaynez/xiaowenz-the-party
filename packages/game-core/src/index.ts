@@ -37,6 +37,8 @@ export interface GameDefinition<State, View extends GameViewBase> {
   readonly version: number;
   readonly name: string;
   readonly emoji: string;
+  readonly description: string;
+  readonly tags: readonly string[];
   readonly roundsOptions: readonly number[];
   readonly minPlayers: number;
   readonly maxPlayers: number;
@@ -47,11 +49,13 @@ export interface GameDefinition<State, View extends GameViewBase> {
   isFinished(state: State): boolean;
 }
 
-// 展示元数据供大厅选择器与 /api/config 使用，不参与规则校验。
+// 展示元数据供首页货架、大厅选择器与 /api/config 使用，不参与规则校验。
 export interface GameInfo {
   id: string;
   name: string;
   emoji: string;
+  description: string;
+  tags: readonly string[];
   roundsOptions: readonly number[];
   minPlayers: number;
   maxPlayers: number;
@@ -62,6 +66,8 @@ export function toGameInfo(definition: AnyGameDefinition): GameInfo {
     id: definition.id,
     name: definition.name,
     emoji: definition.emoji,
+    description: definition.description,
+    tags: definition.tags,
     roundsOptions: definition.roundsOptions,
     minPlayers: definition.minPlayers,
     maxPlayers: definition.maxPlayers,
