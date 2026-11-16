@@ -11,12 +11,13 @@ export function CarFrameLabPage() {
     const params = new URLSearchParams(window.location.search);
     const seed = Number(params.get('seed') ?? 123_456);
     const atMs = Number(params.get('time') ?? 32_000);
+    const live = params.get('live') === '1';
     const plan = createCarShowPlan(DEFAULT_CAR_BUILD, Number.isFinite(seed) ? seed : 123_456);
     let renderer: CarGameRenderer | null = null;
     try {
       renderer = new CarGameRenderer(mountRef.current, setError);
-      renderer.setShow(plan, 0, false);
-      renderer.renderAt(Number.isFinite(atMs) ? atMs : 32_000);
+      renderer.setShow(plan, live ? Date.now() : 0, false);
+      if (!live) renderer.renderAt(Number.isFinite(atMs) ? atMs : 32_000);
     } catch {
       setError('当前浏览器无法打开固定帧舞台。');
     }
