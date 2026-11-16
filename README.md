@@ -116,9 +116,10 @@ PUBLIC_ORIGIN=https://party.example.com docker compose up -d
 
 ```text
 feat/* ── PR ──> dev ── release/* ── PR ──> main
+fix/*  ── PR ──> dev
 ```
 
-禁止直接向 `main` 或 `dev` 推送功能代码。详见 [分支规范](docs/BRANCHING.md)。
+`main` 和 `dev` 均为受保护分支，必须通过 PR 合入，必需审批人数为 0。每次开发都从最新 `dev` 创建 `feat/*` 或 `fix/*`；PR 合并后远端自动删除源分支，本地同步后切回 `dev`。详见 [分支规范](docs/BRANCHING.md)。
 
 ## 第一款游戏规则
 
