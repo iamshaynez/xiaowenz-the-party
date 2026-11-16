@@ -42,5 +42,5 @@ jobs:
         run: bash deploy/hk-dev/deploy.sh
 
       - name: 公网 HTTPS 与 WSS 冒烟
-        # 系统 Node 可能为 18；使用 runner 自带 Node 24 提供全局 WebSocket。
-        run: $RUNNER_ROOT/externals/node24/bin/node scripts/smoke-public.mjs https://party.xiaowenz.com
+        # 仅使用 Node 内置模块，兼容 hk-dev 系统 Node 18。
+        run: node scripts/smoke-public.mjs https://party.xiaowenz.com

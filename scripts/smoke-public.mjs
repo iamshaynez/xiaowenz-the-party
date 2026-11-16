@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { createHash, randomBytes } from 'node:crypto';
+import http from 'node:http';
+import https from 'node:https';
 
 const origin = process.argv[2] ?? 'https://party.xiaowenz.com';
 const healthResponse = await fetch(`${origin}/api/health`);
@@ -10,47 +13,40 @@ const pageResponse = await fetch(origin);
 assert.equal(pageResponse.status, 200, '公网首页应返回 200');
 assert.match(await pageResponse.text(), /碰头 PARTY/, '首页应包含产品标识');
 
-const socketOrigin = origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+const target = new URL('/ws', origin);
+const transport = target.protocol === 'https:' ? https : http;
+const key = randomBytes(16).toString('base64');
+const expectedAccept = createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
+
 await new Promise((resolve, reject) => {
-  const socket = new WebSocket(`${socketOrigin}/ws`);
-  let settled = false;
-  const timeout = setTimeout(() => {
-    if (settled) return;
-    settled = true;
-    socket.close();
-    reject(new Error('公网 WebSocket 冒烟超时'));
-  }, 8_000);
-
-  const fail = (message) => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timeout);
-    socket.close();
-    reject(new Error(message));
-  };
-
-  socket.addEventListener('open', () => {
-    socket.send(JSON.stringify({ type: 'ping' }));
+  const request = transport.request(target, {
+    method: 'GET',
+    headers: {
+      Connection: 'Upgrade',
+      Upgrade: 'websocket',
+      'Sec-WebSocket-Key': key,
+      'Sec-WebSocket-Version': '13',
+    },
   });
-  socket.addEventListener('message', (event) => {
+  request.setTimeout(8_000, () => request.destroy(new Error('公网 WebSocket 冒烟超时')));
+  request.once('upgrade', (response, socket) => {
     try {
-      const message = JSON.parse(String(event.data));
-      if (message.type === 'error' && message.code === 'AUTH_REQUIRED') {
-        settled = true;
-        clearTimeout(timeout);
-        socket.close();
-        resolve();
-      } else {
-        fail(`收到非预期 WebSocket 消息：${message.code ?? message.type}`);
-      }
+      assert.equal(response.statusCode, 101, 'WebSocket 应切换协议');
+      assert.equal(response.headers.upgrade?.toLowerCase(), 'websocket');
+      assert.equal(response.headers['sec-websocket-accept'], expectedAccept, 'WebSocket 握手签名不正确');
+      socket.destroy();
+      resolve();
     } catch (error) {
-      fail(error instanceof Error ? error.message : String(error));
+      socket.destroy();
+      reject(error);
     }
   });
-  socket.addEventListener('error', () => fail('公网 WebSocket 连接失败'));
-  socket.addEventListener('close', (event) => {
-    if (!settled) fail(`WebSocket 提前关闭：${event.code}`);
+  request.once('response', (response) => {
+    response.resume();
+    reject(new Error(`WebSocket 未升级，HTTP ${response.statusCode}`));
   });
+  request.once('error', reject);
+  request.end();
 });
 
-console.log(`公网冒烟通过：${origin}（HTTPS 200 + WSS Upgrade）`);
+console.log(`公网冒烟通过：${origin}（HTTP 200 + WS 101 Upgrade）`);
