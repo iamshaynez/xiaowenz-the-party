@@ -149,7 +149,8 @@ export class CarGameRenderer {
     this.animationFrame = requestAnimationFrame(this.animate);
     if (this.contextLost || document.hidden || time - this.lastFrameAt < 33) return;
     this.lastFrameAt = time;
-    this.renderFrame(time);
+    // Show timestamps are Unix time; RAF time only drives throttling and local idle motion.
+    this.renderFrame(this.mode === 'show' || this.mode === 'award' ? Date.now() : time);
   };
 
   private renderFrame(time: number) {
