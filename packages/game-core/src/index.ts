@@ -35,13 +35,37 @@ export interface CreateGameOptions extends GameContext {
 export interface GameDefinition<State, View extends GameViewBase> {
   readonly id: string;
   readonly version: number;
+  readonly name: string;
+  readonly emoji: string;
+  readonly roundsOptions: readonly number[];
   readonly minPlayers: number;
   readonly maxPlayers: number;
   create(options: CreateGameOptions): State;
   act(state: State, context: GameActionContext): void;
-  advanceTime(state: State, now: number): boolean;
+  advanceTime(state: State, context: GameContext): boolean;
   view(state: State, playerId: string): View;
   isFinished(state: State): boolean;
+}
+
+// 展示元数据供大厅选择器与 /api/config 使用，不参与规则校验。
+export interface GameInfo {
+  id: string;
+  name: string;
+  emoji: string;
+  roundsOptions: readonly number[];
+  minPlayers: number;
+  maxPlayers: number;
+}
+
+export function toGameInfo(definition: AnyGameDefinition): GameInfo {
+  return {
+    id: definition.id,
+    name: definition.name,
+    emoji: definition.emoji,
+    roundsOptions: definition.roundsOptions,
+    minPlayers: definition.minPlayers,
+    maxPlayers: definition.maxPlayers,
+  };
 }
 
 // A registry intentionally erases each game's private state at the composition boundary.

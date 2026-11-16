@@ -1,7 +1,8 @@
 import { DomainError } from '@party/game-core';
 import type { CreateGameOptions, GameActionContext, GameDefinition } from '@party/game-core';
-import { VOTING_DURATION_MS } from '@party/protocol';
 import { PROMPTS } from './prompts';
+
+export const VOTING_DURATION_MS = 60_000;
 
 export interface MostLikelyResults {
   votes: Record<string, string>;
@@ -108,18 +109,23 @@ function act(state: MostLikelyState, context: GameActionContext) {
       }));
       return;
     }
+    default:
+      throw new DomainError('INVALID_ACTION', '这不是「谁最可能」的动作');
   }
 }
 
 export const mostLikelyGame: GameDefinition<MostLikelyState, MostLikelyView> = {
   id: 'most-likely',
   version: 1,
+  name: '谁最可能',
+  emoji: '🗳️',
+  roundsOptions: [3, 5, 8],
   minPlayers: 3,
   maxPlayers: 12,
   create,
   act,
-  advanceTime(state, now) {
-    if (state.phase !== 'voting' || state.deadlineAt === null || now < state.deadlineAt) return false;
+  advanceTime(state, context) {
+    if (state.phase !== 'voting' || state.deadlineAt === null || context.now < state.deadlineAt) return false;
     reveal(state);
     return true;
   },

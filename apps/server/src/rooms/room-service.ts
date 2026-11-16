@@ -181,7 +181,7 @@ export class RoomService {
     const changed: string[] = [];
     let mutated = false;
     for (const [code, aggregate] of this.rooms) {
-      if (aggregate.room.advanceTime(this.options.now())) {
+      if (aggregate.room.advanceTime(this.options.now(), this.random)) {
         changed.push(code);
         mutated = true;
       }

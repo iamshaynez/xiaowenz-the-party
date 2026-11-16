@@ -62,6 +62,7 @@ test('三位真实玩家完成三轮对局，手机刷新恢复身份并最终�
     await owner.page.screenshot({ path: 'artifacts/lobby-desktop.png', fullPage: true, animations: 'disabled' });
     await second.page.screenshot({ path: 'artifacts/lobby-mobile.png', fullPage: true, animations: 'disabled' });
 
+    await owner.page.getByRole('radio', { name: /谁最可能/ }).click();
     await owner.page.getByRole('button', { name: '开始游戏' }).click();
     for (const page of [owner.page, second.page, third.page]) {
       await expect(page.getByText('你的这一票，投给谁？')).toBeVisible();
@@ -96,6 +97,76 @@ test('三位真实玩家完成三轮对局，手机刷新恢复身份并最终�
     await owner.page.getByRole('button', { name: '再来一局' }).click();
     await expect(second.page.getByText('ROUND 01')).toBeVisible();
     await expect(second.page.getByText('0 分')).toBeVisible();
+    expect(errors).toEqual([]);
+    await testInfo.attach('room-code', { body: code, contentType: 'text/plain' });
+  } finally {
+    await Promise.all([owner.context.close(), second.context.close(), third.context.close()]);
+  }
+});
+
+test('三位真实玩家完成一局存钱罐，随机事件与随机落幕下顺利收尾', async ({ browser }, testInfo) => {
+  test.setTimeout(150_000);
+  const owner = await newPlayer(browser, false);
+  const second = await newPlayer(browser);
+  const third = await newPlayer(browser);
+  const errors: string[] = [];
+  for (const player of [owner, second, third]) {
+    player.page.on('pageerror', (error) => errors.push(error.message));
+  }
+
+  try {
+    await owner.page.goto('/');
+    await owner.page.getByRole('button', { name: '创建派对' }).click();
+    await owner.page.getByLabel('你的昵称').fill('房主小文');
+    await owner.page.getByRole('button', { name: '创建并进入房间' }).click();
+    await expect(owner.page.getByRole('heading', { name: '人都到齐了吗？' })).toBeVisible();
+    const code = (await owner.page.locator('.room-code__value').textContent())!;
+    await join(second.page, code, '阿熊');
+    await join(third.page, code, '蛙蛙');
+    await expect(owner.page.getByText('3 / 12 位朋友')).toBeVisible();
+
+    await owner.page.getByRole('radio', { name: /存钱罐/ }).click();
+    await expect(owner.page.getByText('一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。')).toBeVisible();
+    await owner.page.screenshot({ path: 'artifacts/piggy-lobby-desktop.png', fullPage: true, animations: 'disabled' });
+    await owner.page.getByRole('button', { name: '开始游戏' }).click();
+
+    for (const page of [owner.page, second.page, third.page]) {
+      await expect(page.getByText('守罐还是发财？')).toBeVisible();
+      await expect(page.getByText('枚金币')).toBeVisible();
+    }
+    await expect(owner.page.getByText('3~5 轮间随时落幕')).toBeVisible();
+
+    // 事件与落幕轮都由服务端随机决定，断言保持事件无关。
+    let finished = false;
+    for (let round = 0; round < 8 && !finished; round += 1) {
+      if (round === 0) {
+        await owner.page.getByRole('button', { name: '守护罐子' }).click();
+        await second.page.getByRole('button', { name: /^打破罐子/ }).click();
+        await third.page.getByRole('button', { name: '守护罐子' }).click();
+      } else {
+        await owner.page.getByRole('button', { name: '守护罐子' }).click();
+        await second.page.getByRole('button', { name: '守护罐子' }).click();
+        await third.page.getByRole('button', { name: '守护罐子' }).click();
+      }
+      await expect(owner.page.getByText('本轮揭晓')).toBeVisible();
+      await second.page.screenshot({ path: 'artifacts/piggy-reveal-mobile.png', fullPage: true, animations: 'disabled' });
+
+      const choosingAgain = owner.page.getByText('守罐还是发财？');
+      const finale = owner.page.getByRole('heading', { name: '今晚的存钱罐之王' });
+      await expect(choosingAgain.or(finale)).toBeVisible({ timeout: 20_000 });
+      if (await finale.isVisible()) finished = true;
+    }
+    expect(finished).toBe(true);
+
+    for (const page of [owner.page, second.page, third.page]) {
+      await expect(page.getByRole('heading', { name: '今晚的存钱罐之王' })).toBeVisible();
+      await expect(page.getByText('金币').first()).toBeVisible();
+    }
+    await owner.page.screenshot({ path: 'artifacts/piggy-final-desktop.png', fullPage: true, animations: 'disabled' });
+    await expect(second.page.getByRole('button', { name: '再来一局' })).toHaveCount(0);
+
+    await owner.page.getByRole('button', { name: '再来一局' }).click();
+    await expect(second.page.getByText('第 1 轮')).toBeVisible();
     expect(errors).toEqual([]);
     await testInfo.attach('room-code', { body: code, contentType: 'text/plain' });
   } finally {
