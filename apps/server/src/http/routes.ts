@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { AVATARS, createRoomRequestSchema, joinRoomRequestSchema, VOTING_DURATION_MS } from '@party/protocol';
+import { AVATARS, createRoomRequestSchema, joinRoomRequestSchema } from '@party/protocol';
 import { gameRegistry } from '@party/games';
 import { DomainError } from '@party/room';
 import { RoomService } from '../rooms/room-service';
@@ -19,10 +19,12 @@ export function registerHttpRoutes(app: FastifyInstance, rooms: RoomService, gat
 
   app.get('/api/config', async () => ({
     avatars: AVATARS,
-    votingDurationMs: VOTING_DURATION_MS,
     games: [...gameRegistry.values()].map((game) => ({
       id: game.id,
       version: game.version,
+      name: game.name,
+      emoji: game.emoji,
+      roundsOptions: game.roundsOptions,
       minPlayers: game.minPlayers,
       maxPlayers: game.maxPlayers,
     })),

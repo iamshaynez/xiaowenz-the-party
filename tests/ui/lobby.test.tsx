@@ -22,7 +22,21 @@ describe('派对大厅', () => {
     expect(screen.getByRole('button', { name: '开始游戏' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: '5 轮' }));
     await user.click(screen.getByRole('button', { name: '开始游戏' }));
-    expect(onStart).toHaveBeenCalledWith(5);
+    expect(onStart).toHaveBeenCalledWith('most-likely', 5);
+  });
+
+  it('房主可以切换到存钱罐，轮数选项跟随游戏变化', async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    render(<Lobby room={room} playerId="owner" onStart={onStart} onLeave={vi.fn()} pending={false} />);
+
+    await user.click(screen.getByRole('radio', { name: /存钱罐/ }));
+    expect(screen.getByText('一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '4 轮' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: '5 轮' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '6 轮' }));
+    await user.click(screen.getByRole('button', { name: '开始游戏' }));
+    expect(onStart).toHaveBeenCalledWith('piggy-bank', 6);
   });
 
   it('普通玩家不能开局，会明确看到正在等待房主', () => {

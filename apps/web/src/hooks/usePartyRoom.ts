@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ClientMessage, GameAction, RoomView, Session } from '@party/protocol';
+import type { ClientMessage, GameAction, GameId, RoomView, Session } from '@party/protocol';
 import type { PartyConnection, PartyServices, ProfileInput } from '../services/types';
 
 const storageKey = (code: string) => `party.session.${code}`;
@@ -108,8 +108,8 @@ export function usePartyRoom(code: string, services: PartyServices) {
         setJoining(false);
       }
     },
-    start(rounds: number) {
-      send({ type: 'start-game', actionId: actionId(), gameId: 'most-likely', rounds });
+    start(gameId: GameId, rounds: number) {
+      send({ type: 'start-game', actionId: actionId(), gameId, rounds });
     },
     act(action: GameAction) {
       send({ type: 'game-action', actionId: actionId(), action });

@@ -18,7 +18,7 @@
 
 ### `GET /api/config`
 
-返回预置头像、投票时长和公开游戏元数据，不含任何房间或会话信息。
+返回预置头像与公开游戏元数据（`id`、`version`、`name`、`emoji`、`roundsOptions`、`minPlayers`、`maxPlayers`），不含任何房间或会话信息。
 
 ### `GET /api/health`
 
@@ -50,22 +50,24 @@
 { "type": "authenticate", "sessionId": "s_…", "resumeToken": "rt_…" }
 ```
 
-开局：
+开局（`gameId` 取 `most-likely` 或 `piggy-bank`；轮数在 1–8 间，具体可选值由各游戏决定，如「存钱罐」支持 4/6/8）：
 
 ```json
 { "type": "start-game", "actionId": "web-uuid", "gameId": "most-likely", "rounds": 3 }
 ```
 
-游戏动作：
+游戏动作按当前游戏校验。「谁最可能」：
 
 ```json
 { "type": "game-action", "actionId": "web-uuid", "action": { "type": "cast-vote", "targetId": "p_…" } }
+{ "type": "next-round" }
+{ "type": "play-again" }
 ```
 
-其他游戏动作：
+「存钱罐」（`choice` 为 `guard` 或 `smash`；轮次推进由服务端自动完成，没有 `next-round`）：
 
 ```json
-{ "type": "next-round" }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "choose", "choice": "smash" } }
 { "type": "play-again" }
 ```
 
@@ -86,6 +88,8 @@
 
 投票阶段不会向其他玩家发送 `votes` 或 `ownVote`。其他玩家只能看到谁已提交；揭晓后才公开票型。
 
+「存钱罐」的抉择同理：他人的 `ownChoice`、保密的落幕轮 `finalRound` 与暗牌事件（纸糊罐、警报轮）在揭晓前不会出现在任何玩家的视图里；盲罐轮期间 `pot` 为 `null`。
+
 ## 常见错误码
 
 - `AUTH_REQUIRED` / `AUTH_FAILED` / `AUTH_TIMEOUT`
@@ -94,3 +98,4 @@
 - `ROOM_NOT_FOUND` / `ROOM_FULL` / `NICKNAME_TAKEN`
 - `OWNER_ONLY` / `NOT_A_PARTICIPANT` / `INVALID_PHASE`
 - `SELF_VOTE` / `INVALID_TARGET` / `NOT_ENOUGH_PLAYERS`
+- `INVALID_ACTION` / `INVALID_ROUNDS` / `NO_HAMMER`
