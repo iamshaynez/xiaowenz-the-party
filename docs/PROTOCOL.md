@@ -18,7 +18,7 @@
 
 ### `GET /api/config`
 
-返回预置头像与公开游戏元数据（`id`、`version`、`name`、`emoji`、`roundsOptions`、`minPlayers`、`maxPlayers`），不含任何房间或会话信息。
+返回预置头像与公开游戏元数据（`id`、`version`、`name`、`emoji`、`description`、`tags`、`roundsOptions`、`minPlayers`、`maxPlayers`），不含任何房间或会话信息。
 
 ### `GET /api/health`
 

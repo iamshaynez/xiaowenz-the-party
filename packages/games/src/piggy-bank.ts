@@ -256,6 +256,8 @@ export const piggyBankGame: GameDefinition<PiggyBankState, PiggyBankView> = {
   version: 1,
   name: '存钱罐',
   emoji: '🏺',
+  description: '一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。',
+  tags: ['家庭', '儿童', '反转'],
   roundsOptions: ROUNDS_OPTIONS,
   minPlayers: 3,
   maxPlayers: 12,

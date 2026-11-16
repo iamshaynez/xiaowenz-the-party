@@ -24,6 +24,8 @@ export function registerHttpRoutes(app: FastifyInstance, rooms: RoomService, gat
       version: game.version,
       name: game.name,
       emoji: game.emoji,
+      description: game.description,
+      tags: game.tags,
       roundsOptions: game.roundsOptions,
       minPlayers: game.minPlayers,
       maxPlayers: game.maxPlayers,

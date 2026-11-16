@@ -40,6 +40,28 @@ function fakeServices() {
 }
 
 describe('玩家进入派对', () => {
+  it('首页游戏货架展示全部游戏与标签，选中后创建的房间会预选该游戏', async () => {
+    const user = userEvent.setup();
+    const { services } = fakeServices();
+    render(<MemoryRouter><App services={services} /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: '今晚的游戏货架' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /谁最可能/ })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('破冰')).toBeInTheDocument();
+    expect(screen.getByText('儿童')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /存钱罐/ }));
+    expect(screen.getByText('开局游戏')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '创建派对' }));
+    await user.type(screen.getByLabelText('你的昵称'), '小文');
+    await user.click(screen.getByRole('button', { name: '创建并进入房间' }));
+
+    expect(await screen.findByRole('heading', { name: '人都到齐了吗？' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /存钱罐/ })).toHaveAttribute('aria-checked', 'true');
+    expect(window.localStorage.getItem('party.selectedGame')).toBe('piggy-bank');
+    expect(window.localStorage.getItem('party.game.ABC234')).toBe('piggy-bank');
+  });
+
   it('首页可以创建房间，选择昵称头像后直接进入专属大厅', async () => {
     const user = userEvent.setup();
     const { services } = fakeServices();
