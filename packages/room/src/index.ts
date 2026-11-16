@@ -73,6 +73,7 @@ export class PartyRoom {
         throw new DomainError('SNAPSHOT_INCOMPATIBLE', '游戏快照版本不兼容');
       }
       room.runningGame = { definition, state: structuredClone(snapshot.game.state) };
+      room.phase = definition.isFinished(room.runningGame.state) ? 'finished' : 'playing';
     }
     return room;
   }
@@ -147,14 +148,17 @@ export class PartyRoom {
       isOwner: this.ownerId === playerId,
       action,
     });
-    if (this.runningGame.definition.isFinished(this.runningGame.state)) this.phase = 'finished';
+    this.syncGamePhase();
     this.touch(context.now);
   }
 
   advanceTime(now: number, rng: () => number = Math.random) {
     if (!this.runningGame) return false;
     const changed = this.runningGame.definition.advanceTime(this.runningGame.state, { now, rng });
-    if (changed) this.touch(now);
+    if (changed) {
+      this.syncGamePhase();
+      this.touch(now);
+    }
     return changed;
   }
 
@@ -216,6 +220,11 @@ export class PartyRoom {
   private requireOwner(playerId: string) {
     this.requirePlayer(playerId);
     if (this.ownerId !== playerId) throw new DomainError('OWNER_ONLY', '只有房主可以执行这个操作');
+  }
+
+  private syncGamePhase() {
+    if (!this.runningGame) return;
+    this.phase = this.runningGame.definition.isFinished(this.runningGame.state) ? 'finished' : 'playing';
   }
 
   private touch(now: number) {

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 export interface ServerOptions {
   logger: boolean;
   now: () => number;
+  random?: () => number;
   tickIntervalMs: number;
   messageRateLimit: number;
   messageRateWindowMs: number;
