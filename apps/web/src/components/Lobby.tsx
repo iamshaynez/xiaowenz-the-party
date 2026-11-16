@@ -1,24 +1,40 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { ArrowRight, Check, Copy, LogOut, Play, QrCode, Users } from 'lucide-react';
-import type { RoomView } from '@party/protocol';
+import type { GameId, RoomView } from '@party/protocol';
+import { GAMES } from '@party/games';
 import { Brand } from './Brand';
 import { PlayerGrid } from './PlayerGrid';
 
 interface LobbyProps {
   room: RoomView;
   playerId: string;
-  onStart: (rounds: number) => void;
+  onStart: (gameId: GameId, rounds: number) => void;
   onLeave: () => void;
   pending: boolean;
 }
 
+const GAME_DETAILS: Record<GameId, { blurb: string; rules: string[] }> = {
+  'most-likely': {
+    blurb: '一道题，一票默契。看看在朋友眼里，谁是那个“十有八九”的人。',
+    rules: ['3–12 人', '不能投自己', '平票都得分'],
+  },
+  'piggy-bank': {
+    blurb: '一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。',
+    rules: ['3–12 人', '锤子有限', '小心纸糊罐'],
+  },
+};
+
 export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps) {
+  const [gameId, setGameId] = useState<GameId>('most-likely');
   const [rounds, setRounds] = useState(3);
   const [qrUrl, setQrUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const isOwner = room.ownerId === playerId;
   const playerCount = room.players.filter((player) => player.role === 'player').length;
+  const selected = GAMES.find((game) => game.id === gameId) ?? GAMES[0]!;
+  const selectedId = selected.id as GameId;
+  const details = GAME_DETAILS[selectedId];
 
   useEffect(() => {
     void QRCode.toDataURL(window.location.href, {
@@ -76,30 +92,45 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
         </section>
 
         <aside className="game-setup-card">
-          <div className="game-poster" aria-hidden="true">
-            <span className="game-poster__sticker">首款游戏</span>
-            <div className="game-poster__emoji">🗳️</div>
-            <span className="game-poster__mini">VOTE · LAUGH · REPEAT</span>
+          <div className="game-picker" role="radiogroup" aria-label="选择游戏">
+            {GAMES.map((game) => (
+              <button
+                key={game.id}
+                type="button"
+                role="radio"
+                aria-checked={gameId === game.id}
+                className={`game-option ${gameId === game.id ? 'is-active' : ''}`}
+                onClick={() => {
+                  setGameId(game.id as GameId);
+                  setRounds(game.roundsOptions[0]!);
+                }}
+              >
+                <span className="game-option__emoji">{game.emoji}</span>
+                <strong>{game.name}</strong>
+                <span className="game-option__meta">{game.minPlayers}–{game.maxPlayers} 人</span>
+                {gameId === game.id && <span className="game-option__check"><Check size={14} /></span>}
+              </button>
+            ))}
           </div>
           <div className="game-setup-card__body">
-            <span className="mini-label">WHO'S MOST LIKELY</span>
-            <h2>谁最可能</h2>
-            <p>一道题，一票默契。看看在朋友眼里，谁是那个“十有八九”的人。</p>
+            <span className="mini-label">{selectedId === 'most-likely' ? "WHO'S MOST LIKELY" : 'PIGGY BANK'}</span>
+            <h2>{selected.name}</h2>
+            <p>{details.blurb}</p>
             <div className="game-rules">
-              <span>3–12 人</span><span>不能投自己</span><span>平票都得分</span>
+              {details.rules.map((rule) => <span key={rule}>{rule}</span>)}
             </div>
             {isOwner ? (
               <>
                 <div className="round-picker-label">玩几轮？</div>
                 <div className="round-picker" aria-label="游戏轮数">
-                  {[3, 5, 8].map((value) => (
+                  {selected.roundsOptions.map((value) => (
                     <button key={value} type="button" className={rounds === value ? 'is-active' : ''} onClick={() => setRounds(value)}>{value} 轮</button>
                   ))}
                 </div>
-                <button className="primary-button start-button" type="button" disabled={playerCount < 3 || pending} onClick={() => onStart(rounds)}>
+                <button className="primary-button start-button" type="button" disabled={playerCount < selected.minPlayers || pending} onClick={() => onStart(selectedId, rounds)}>
                   <Play size={19} fill="currentColor" />{pending ? '正在开局…' : '开始游戏'}<ArrowRight size={19} />
                 </button>
-                {playerCount < 3 && <p className="inline-hint">还差 {3 - playerCount} 位朋友就能开局</p>}
+                {playerCount < selected.minPlayers && <p className="inline-hint">还差 {selected.minPlayers - playerCount} 位朋友就能开局</p>}
               </>
             ) : (
               <div className="waiting-owner"><span className="waiting-owner__dots"><i /><i /><i /></span>等房主开局，可以先热个身。</div>

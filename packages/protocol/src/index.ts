@@ -2,18 +2,25 @@ import { z } from 'zod';
 
 export const AVATARS = ['🦊', '🐼', '🐸', '🐯', '🐰', '🐨', '🦁', '🐷', '🐵', '🐙', '🦄', '🐳'] as const;
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export const VOTING_DURATION_MS = 60_000;
+
+export const GAME_IDS = ['most-likely', 'piggy-bank'] as const;
+export type GameId = (typeof GAME_IDS)[number];
 
 export const roomCodeSchema = z.string().trim().toUpperCase().regex(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
 export const nicknameSchema = z.string().trim().min(1).max(12);
 export const avatarSchema = z.enum(AVATARS);
 export const actionIdSchema = z.string().min(8).max(80);
 
-export const gameActionSchema = z.discriminatedUnion('type', [
+export const mostLikelyActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cast-vote'), targetId: z.string().min(1).max(80) }).strict(),
   z.object({ type: z.literal('next-round') }).strict(),
   z.object({ type: z.literal('play-again') }).strict(),
 ]);
+export const piggyBankActionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('choose'), choice: z.enum(['guard', 'smash']) }).strict(),
+  z.object({ type: z.literal('play-again') }).strict(),
+]);
+export const gameActionSchema = z.union([mostLikelyActionSchema, piggyBankActionSchema]);
 export type GameAction = z.infer<typeof gameActionSchema>;
 
 export const createRoomRequestSchema = z.object({
@@ -27,7 +34,7 @@ export const joinRoomRequestSchema = createRoomRequestSchema.extend({
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('authenticate'), sessionId: z.string().min(10).max(100), resumeToken: z.string().min(20).max(200) }).strict(),
-  z.object({ type: z.literal('start-game'), actionId: actionIdSchema, gameId: z.literal('most-likely'), rounds: z.number().int().min(1).max(8) }).strict(),
+  z.object({ type: z.literal('start-game'), actionId: actionIdSchema, gameId: z.enum(GAME_IDS), rounds: z.number().int().min(1).max(8) }).strict(),
   z.object({ type: z.literal('game-action'), actionId: actionIdSchema, action: gameActionSchema }).strict(),
   z.object({ type: z.literal('leave-room'), actionId: actionIdSchema }).strict(),
   z.object({ type: z.literal('ping') }).strict(),

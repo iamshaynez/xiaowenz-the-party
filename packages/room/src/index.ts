@@ -151,9 +151,9 @@ export class PartyRoom {
     this.touch(context.now);
   }
 
-  advanceTime(now: number) {
+  advanceTime(now: number, rng: () => number = Math.random) {
     if (!this.runningGame) return false;
-    const changed = this.runningGame.definition.advanceTime(this.runningGame.state, now);
+    const changed = this.runningGame.definition.advanceTime(this.runningGame.state, { now, rng });
     if (changed) this.touch(now);
     return changed;
   }

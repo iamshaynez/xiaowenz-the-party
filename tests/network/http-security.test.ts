@@ -26,7 +26,10 @@ afterEach(async () => {
 describe('公网 HTTP 边界', () => {
   it('配置只暴露公开信息，非法输入和重复昵称得到明确错误', async () => {
     const config = await fetch(`${baseUrl}/api/config`).then((response) => response.json());
-    expect(config.games).toEqual([{ id: 'most-likely', version: 1, minPlayers: 3, maxPlayers: 12 }]);
+    expect(config.games).toEqual([
+      { id: 'most-likely', version: 1, name: '谁最可能', emoji: '🗳️', roundsOptions: [3, 5, 8], minPlayers: 3, maxPlayers: 12 },
+      { id: 'piggy-bank', version: 1, name: '存钱罐', emoji: '🏺', roundsOptions: [4, 6, 8], minPlayers: 3, maxPlayers: 12 },
+    ]);
     expect(config.avatars).toContain('🦊');
     expect(JSON.stringify(config)).not.toContain('resumeToken');
 
