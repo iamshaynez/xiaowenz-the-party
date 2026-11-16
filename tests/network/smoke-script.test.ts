@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import type { AddressInfo, Socket } from 'node:net';
+import type { AddressInfo } from 'node:net';
+import type { Duplex } from 'node:stream';
 import { spawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
@@ -15,7 +16,7 @@ describe('公网冒烟脚本的可移植性', () => {
         response.end('<title>碰头 PARTY</title>');
       }
     });
-    const upgradedSockets = new Set<Socket>();
+    const upgradedSockets = new Set<Duplex>();
     server.on('upgrade', (request, socket) => {
       upgradedSockets.add(socket);
       socket.once('close', () => upgradedSockets.delete(socket));
