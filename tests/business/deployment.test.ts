@@ -19,6 +19,7 @@ describe('合并 main 即部署的生产契约', () => {
     expect(text).toContain('/xiaowenz/the-party:main');
     expect(text).toContain('deploy/hk-dev/deploy.sh');
     expect(text).toContain('scripts/smoke-public.mjs https://party.xiaowenz.com');
+    expect(text).toContain('$RUNNER_ROOT/externals/node24/bin/node');
   });
 
   it('生产容器仅暴露回环端口，使用固定公网源和受保护快照目录', () => {
