@@ -139,6 +139,16 @@ export class PartyRoom {
     this.touch(context.now);
   }
 
+  endGame(playerId: string, now: number) {
+    this.requireOwner(playerId);
+    if (this.phase !== 'finished') throw new DomainError('INVALID_PHASE', '本局结束后才能回大厅');
+    this.runningGame = null;
+    this.phase = 'lobby';
+    // 迟到的旁观者随之转回参与者，回大厅重新凑局后下一局就能一起玩。
+    for (const player of this.players) player.role = 'player';
+    this.touch(now);
+  }
+
   act(playerId: string, action: GameAction, context: GameContext) {
     this.requirePlayer(playerId);
     if (!this.runningGame) throw new DomainError('INVALID_PHASE', '游戏还没有开始');

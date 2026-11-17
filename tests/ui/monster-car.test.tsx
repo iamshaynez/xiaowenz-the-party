@@ -117,7 +117,7 @@ async function renderPanel(
   onAction = vi.fn(),
   roomPlayers: RoomView['players'] = players,
 ) {
-  const result = render(<GamePanel room={roomWith(game, roomPlayers)} playerId={playerId} onAction={onAction} pending={pending} />);
+  const result = render(<GamePanel room={roomWith(game, roomPlayers)} playerId={playerId} onAction={onAction} onEndGame={vi.fn()} pending={pending} />);
   await screen.findByTestId('monster-car-canvas');
   return result;
 }
@@ -271,7 +271,7 @@ describe('怪兽汽车：组装、竞演与终局', () => {
       ...buildingGame,
       builds: { ...builds, owner: { ...defaultBuild, wheels: 'spring' } },
     };
-    result.rerender(<GamePanel room={roomWith(updatedGame, spectatorPlayers)} playerId="spectator" onAction={vi.fn()} pending={false} />);
+    result.rerender(<GamePanel room={roomWith(updatedGame, spectatorPlayers)} playerId="spectator" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
     await waitFor(() => expect(screen.getByTestId('monster-car-canvas')).toHaveAttribute('data-preview-build', JSON.stringify(updatedGame.builds.owner)));
   });
 
@@ -281,7 +281,7 @@ describe('怪兽汽车：组装、竞演与终局', () => {
     const expected = sampleMonsterCarFrame(racePlan, 5_000);
     const ownCar = expected.cars.find((car) => car.playerId === 'owner');
     if (!ownCar) throw new Error('降级测试缺少自己的车辆');
-    render(<GamePanel room={roomWith(racingGame)} playerId="owner" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith(racingGame)} playerId="owner" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
 
     expect(await screen.findByText(`我的车在第 ${ownCar.place} 位`)).toBeInTheDocument();
     expect(screen.getByText('森林旅行 · 25 秒')).toBeInTheDocument();

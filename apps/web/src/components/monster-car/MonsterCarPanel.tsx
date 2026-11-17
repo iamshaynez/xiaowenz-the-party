@@ -31,7 +31,7 @@ const FALLBACK_BUILD: MonsterCarBuild = {
 const ENVIRONMENT_EMOJI = { puddle: '💦', log: '🪵', gust: '🍃', hill: '⛰️' } as const;
 const PART_PAGE_SIZE = 4;
 
-export function MonsterCarPanel({ room, playerId, onAction, pending, serverClockOffsetMs = 0 }: GamePanelProps) {
+export function MonsterCarPanel({ room, playerId, onAction, onEndGame, pending, serverClockOffsetMs = 0 }: GamePanelProps) {
   const game = room.game as MonsterCarView;
   const isOwner = room.ownerId === playerId;
   const isParticipant = game.participantIds.includes(playerId);
@@ -382,7 +382,10 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
               <div className="mc-results-actions">
                 <button className="mc-continue-button" type="button" aria-expanded="true" aria-controls="mc-results-card" onClick={closeResults}>看车车和礼花</button>
                 {isOwner ? (
-                  <button className="mc-again-button" type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}><RotateCcw size={18} />再造一辆，重新出发</button>
+                  <>
+                    <button className="mc-again-button" type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}><RotateCcw size={18} />再造一辆，重新出发</button>
+                    <button className="mc-continue-button" type="button" disabled={pending} onClick={onEndGame}>换个游戏</button>
+                  </>
                 ) : <p className="mc-waiting-owner">等房主再开一场森林旅行</p>}
               </div>
             </section>
@@ -392,6 +395,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
               <span><Sparkles size={16} />欢乐车阵 · 礼花庆典</span>
               <button id="mc-show-results" type="button" aria-expanded="false" aria-controls="mc-results-card" onClick={revealResults}>查看名次</button>
               {isOwner && <button type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}>再玩一场</button>}
+              {isOwner && <button type="button" disabled={pending} onClick={onEndGame}>换个游戏</button>}
             </div>
           )}
         </section>

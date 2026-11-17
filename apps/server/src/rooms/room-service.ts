@@ -170,6 +170,12 @@ export class RoomService {
     });
   }
 
+  endGame(record: SessionRecord, actionId: string) {
+    return this.perform(record, actionId, {}, () => {
+      this.aggregate(record).room.endGame(record.playerId, this.options.now());
+    });
+  }
+
   act(record: SessionRecord, actionId: string, action: GameAction) {
     return this.perform(record, actionId, action, () => {
       this.aggregate(record).room.act(record.playerId, action, { now: this.options.now(), rng: this.random });
