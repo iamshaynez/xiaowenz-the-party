@@ -237,6 +237,7 @@ describe('怪兽汽车：组装、竞演与终局', () => {
     expect(screen.queryByRole('tablist', { name: '汽车部位' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: '选择轮子' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '我的车好了！出发' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /惊喜一下/ })).not.toBeInTheDocument();
     expect(onAction).not.toHaveBeenCalled();
   });
 
@@ -289,11 +290,16 @@ describe('怪兽汽车：组装、竞演与终局', () => {
     expect(screen.queryByTestId('monster-car-canvas')).not.toBeInTheDocument();
   });
 
-  it('模型货架展示八个真实缩略图，加载失败也保留可选的回退控件', async () => {
+  it('模型货架每页展示四款，并可翻页找到第二页的香蕉轮', async () => {
+    const user = userEvent.setup();
     await renderPanel(buildingGame);
-    const thumbnails = document.querySelectorAll('.mc-part-options [data-testid^="part-thumbnail-"]');
-    expect(thumbnails).toHaveLength(8);
-    expect(Array.from(thumbnails).every((node) => node.getAttribute('data-state') === 'loaded')).toBe(true);
+    expect(document.querySelectorAll('.mc-part-options [data-testid^="part-thumbnail-"]')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: '上一页零件' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '下一页零件' }));
+    expect(document.querySelectorAll('.mc-part-options [data-testid^="part-thumbnail-"]')).toHaveLength(4);
+    expect(screen.getByTestId('part-thumbnail-wheels-banana')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /香蕉轮/ })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('button', { name: '下一页零件' })).toBeDisabled();
   });
 
   it('缩略图失败时仍可通过模型名称选择并提交零件', async () => {
@@ -301,10 +307,26 @@ describe('怪兽汽车：组装、竞演与终局', () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
     await renderPanel(buildingGame, 'owner', false, onAction);
+    await user.click(screen.getByRole('button', { name: '下一页零件' }));
     expect(screen.getByTestId('part-thumbnail-wheels-banana')).toHaveAttribute('data-state', 'fallback');
     await user.click(screen.getByRole('radio', { name: /香蕉轮/ }));
     await user.click(screen.getByRole('button', { name: '我的车好了！出发' }));
     expect(onAction).toHaveBeenCalledWith({ type: 'build-car', build: { ...defaultBuild, wheels: 'banana' } });
+  });
+
+  it('惊喜一下生成完整的五槽怪车，只有点击出发才提交网络动作', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    await renderPanel(buildingGame, 'owner', false, onAction);
+    await user.click(screen.getByRole('button', { name: /惊喜一下/ }));
+    const expected: MonsterCarBuild = {
+      wheels: 'donut', front: 'duck', rear: 'rocket', roof: 'umbrella', driver: 'frog',
+    };
+    expect(screen.getByTestId('monster-car-canvas')).toHaveAttribute('data-preview-build', JSON.stringify(expected));
+    expect(onAction).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '我的车好了！出发' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'build-car', build: expected });
   });
 
   it('终点名次自动收起为庆典条，并可重新展开而不影响车辆庆典', async () => {

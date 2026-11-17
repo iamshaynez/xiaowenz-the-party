@@ -147,6 +147,20 @@ describe('怪兽汽车无 WebGL 烟花粒子池', () => {
     }
   });
 
+  it('不同庆典种子产生不同礼花，同种子仍可精确复现', () => {
+    const first = new FireworksField(false, 101);
+    const same = new FireworksField(false, 101);
+    const different = new FireworksField(false, 202);
+    try {
+      expect(first.points.geometry.getAttribute('aVelocity').array).toEqual(same.points.geometry.getAttribute('aVelocity').array);
+      expect(first.points.geometry.getAttribute('aVelocity').array).not.toEqual(different.points.geometry.getAttribute('aVelocity').array);
+    } finally {
+      first.dispose();
+      same.dispose();
+      different.dispose();
+    }
+  });
+
   it('绝对时间驱动初始及后续轮次，更新不会扩张或替换粒子属性', () => {
     const field = new FireworksField(true);
     const geometry = field.points.geometry;

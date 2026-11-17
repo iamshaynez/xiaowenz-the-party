@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { MONSTER_CAR_SLOTS, MONSTER_CAR_PART_IDS } from '@party/protocol';
 import type { MonsterCarBuild } from '@party/protocol';
 import { MONSTER_CAR_PART_CATALOG, resolveMonsterCarReaction } from '@party/games';
-import type { MonsterCarFrameCar, MonsterCarStimulus } from '@party/games';
+import type { MonsterCarFrameCar, MonsterCarStimulus, MonsterCarRacerPlan } from '@party/games';
 import { CarAssembly } from '../../apps/web/src/components/monster-car/rendering/CarAssembly';
 import { PART_MODEL_REGISTRIES } from '../../apps/web/src/components/monster-car/rendering/models';
 import { disposeModel } from '../../apps/web/src/components/monster-car/rendering/models/types';
 import { REACTION_LIBRARY, sampleReactionPose } from '../../apps/web/src/components/monster-car/rendering/ReactionLibrary';
 import { PartThumbnailBaker } from '../../apps/web/src/components/monster-car/thumbnails/PartThumbnailBaker';
+import { samplePerformanceCue } from '../../apps/web/src/components/monster-car/rendering/presentation/ReactionPerformance';
 
 const DEFAULT_BUILD: MonsterCarBuild = {
   wheels: 'classic', front: 'smile', rear: 'trunk', roof: 'mushroom', driver: 'bear',
@@ -200,5 +201,43 @@ describe('怪兽汽车扩展协议', () => {
     const rejection = expect(pending).rejects.toThrow('THUMBNAIL_CANCELLED');
     baker.release('wheels', 'classic');
     await rejection;
+  });
+
+  it('社交与环境反应叠加时不会互相覆盖整车姿态', () => {
+    const reaction = resolveMonsterCarReaction(DEFAULT_BUILD, 'impact');
+    const cue: NonNullable<MonsterCarFrameCar['activeCue']> = {
+      eventId: 'social-compose', environment: 'log', stimulus: 'impact', startAtMs: 0,
+      durationMs: reaction.primary.durationMs, intensity: 1, primary: reaction.primary,
+      secondary: reaction.secondary, localProgress: 0.5,
+    };
+    const socialOnly = new CarAssembly(DEFAULT_BUILD, 0);
+    const combined = new CarAssembly(DEFAULT_BUILD, 0);
+    try {
+      socialOnly.update(2, 8, cue, false, 0, undefined, { cheer: 0.8, look: 0.4, lean: 0.15 });
+      combined.update(2, 8, cue, false, 0, undefined, { cheer: 0, look: 0, lean: 0 });
+      expect(socialOnly.root.children[0]!.rotation.z).not.toBe(combined.root.children[0]!.rotation.z);
+    } finally {
+      socialOnly.dispose();
+      combined.dispose();
+    }
+  });
+
+  it('预备姿态在接触前后连续释放，不发生一帧跳变', () => {
+    const reaction = resolveMonsterCarReaction(DEFAULT_BUILD, 'impact');
+    const cue = {
+      eventId: 'anticipation-release', environment: 'log' as const, stimulus: 'impact' as const,
+      startAtMs: 1_000, durationMs: reaction.primary.durationMs, intensity: 1,
+      primary: reaction.primary, secondary: reaction.secondary,
+    };
+    const racer: MonsterCarRacerPlan = {
+      playerId: 'owner', build: DEFAULT_BUILD, lane: 0, paint: 0,
+      finishAtMs: 29_000, pace: [], cues: [cue], highlight: 'test',
+    };
+    const before = samplePerformanceCue(racer, 999);
+    const contact = samplePerformanceCue(racer, 1_000);
+    const after = samplePerformanceCue(racer, 1_240);
+    expect(before?.performance.anticipation).toBeGreaterThan(0.99);
+    expect(contact?.performance.anticipation).toBe(1);
+    expect(after?.performance.anticipation).toBe(0);
   });
 });
