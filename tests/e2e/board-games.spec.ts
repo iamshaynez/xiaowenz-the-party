@@ -56,29 +56,48 @@ test('五子棋：双浏览器真实 WebGL 对局，黑棋键盘落子连五获�
   for (const player of [owner, second]) player.page.on('pageerror', (error) => errors.push(error.message));
   try {
     for (const page of [owner.page, second.page]) await expectCanvasRunning(page, 'gomoku-canvas');
-    await mkdir('artifacts', { recursive: true });
-    await owner.page.screenshot({ path: 'artifacts/gomoku-board.png', animations: 'disabled' });
-
     const black = owner.page.locator('.gm-render-host');
     const white = second.page.locator('.gm-render-host');
-    const myTurn = (page: Page) => expect(page.locator('.bt-status')).toContainText('轮到你了', { timeout: 30_000 });
 
-    // 黑：天元起手；白：一路向上陪跑。黑横向连五取胜。
-    await myTurn(owner.page);
-    await black.press('Enter');
-    for (let round = 0; round < 4; round += 1) {
-      await myTurn(second.page);
-      await white.press('ArrowUp');
-      await white.press('Enter');
-      await myTurn(owner.page);
-      await black.press('ArrowRight');
-      await black.press('Enter');
+    // 从 aria-label 读回光标，逐键导航到目标交叉点；按键丢失时重试。
+    async function moveCursorTo(host: ReturnType<Page['locator']>, x: number, y: number) {
+      for (let guard = 0; guard < 30; guard += 1) {
+        const label = await host.getAttribute('aria-label');
+        const match = /第 (\d+) 行第 (\d+) 列/.exec(label ?? '');
+        if (!match) throw new Error('棋盘光标标签缺失');
+        const cy = Number(match[1]) - 1;
+        const cx = Number(match[2]) - 1;
+        if (cx === x && cy === y) return;
+        const dx = Math.sign(x - cx);
+        const dy = Math.sign(y - cy);
+        await host.press(dx > 0 ? 'ArrowRight' : dx < 0 ? 'ArrowLeft' : dy > 0 ? 'ArrowDown' : 'ArrowUp');
+      }
+      throw new Error('光标导航失败');
     }
-    // 黑第五子：(11,7)，落子即胜。
+
+    async function playStone(page: Page, host: ReturnType<Page['locator']>, x: number, y: number) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await expect(page.locator('.bt-status')).toContainText('轮到你了', { timeout: 30_000 });
+        await moveCursorTo(host, x, y);
+        await host.press('Enter');
+        // 生效判定：状态条翻转到「等待」，或直接出现终局浮层（最后一子取胜）。
+        const flipped = await Promise.race([
+          page.locator('.bt-status').filter({ hasNotText: '轮到你了' }).waitFor({ state: 'visible', timeout: 6_000 }).then(() => true),
+          page.locator('.bt-overlay').waitFor({ state: 'visible', timeout: 6_000 }).then(() => true),
+        ]).catch(() => false);
+        if (flipped) return;
+      }
+      throw new Error(`落子 (${x},${y}) 未生效`);
+    }
+
+    // 黑：天元起手横向连五；白：一路向上陪跑。
+    await playStone(owner.page, black, 7, 7);
+    for (let round = 0; round < 4; round += 1) {
+      await playStone(second.page, white, 7, 6 - round);
+      await playStone(owner.page, black, 8 + round, 7);
+    }
     await expect(owner.page.locator('.bt-overlay')).toContainText('获胜', { timeout: 10_000 });
     await expect(second.page.locator('.bt-overlay')).toContainText('获胜', { timeout: 10_000 });
-    await owner.page.screenshot({ path: 'artifacts/gomoku-win.png', animations: 'disabled' });
-
     await owner.page.getByRole('button', { name: '换个游戏' }).click();
     await expect(owner.page.getByRole('heading', { name: '人都到齐了吗？' })).toBeVisible();
   } finally {
@@ -138,9 +157,6 @@ test('斗地主：三人叫分定庄，地主键盘打单张到底并回到大�
     for (const player of [owner, second, third]) {
       await expect(player.page.locator('.bt-status')).toContainText(/轮到你出牌|等待/, { timeout: 10_000 });
     }
-    await mkdir('artifacts', { recursive: true });
-    await owner.page.screenshot({ path: 'artifacts/dou-dizhu-table.png', animations: 'disabled' });
-
     // 地主键盘：空格选最小单张、回车打出；两个农民按「不要」。
     // 最后一张出手时本手立即结束，农民不会再有「不要」——两种结局择一等待。
     const host = owner.page.locator('.dd-render-host');
@@ -166,7 +182,6 @@ test('斗地主：三人叫分定庄，地主键盘打单张到底并回到大�
       if (handOver) break;
     }
     await expect(owner.page.getByRole('heading', { name: /率先出完/ })).toBeVisible({ timeout: 20_000 });
-    await owner.page.screenshot({ path: 'artifacts/dou-dizhu-result.png', animations: 'disabled' });
     // 单手制：结算展示后自动进入整场结束。
     await expect(owner.page.getByRole('heading', { name: /赢下整场/ })).toBeVisible({ timeout: 20_000 });
     await owner.page.getByRole('button', { name: '换个游戏' }).click();

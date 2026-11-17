@@ -101,6 +101,11 @@ export function GomokuCanvas({ game, players, playerId, canPlace, onPlace, onFai
         y: Math.max(0, Math.min(GOMOKU_BOARD_SIZE - 1, cursor.y + dy)),
       };
       worldRef.current?.setHover(cursorRef.current, myColorRef.current);
+      // 光标位置命令式写回 aria-label，屏幕阅读器与 E2E 都能读到位姿。
+      event.currentTarget.setAttribute(
+        'aria-label',
+        `五子棋棋盘，方向键移动光标，回车落子，当前光标在第 ${cursorRef.current.y + 1} 行第 ${cursorRef.current.x + 1} 列`,
+      );
     };
     if (event.key === 'ArrowLeft') move(-1, 0);
     else if (event.key === 'ArrowRight') move(1, 0);
