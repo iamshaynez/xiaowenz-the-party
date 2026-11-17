@@ -81,6 +81,47 @@ describe('派对大厅', () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
+  it('按在场人数排序：可玩的游戏排在前面，超员游戏沉底并标注上限', () => {
+    const crowdedRoom: RoomView = {
+      ...room,
+      players: [
+        ...players,
+        { id: 'p4', nickname: '第四位', avatar: '🐨', role: 'player', connected: true },
+        { id: 'p5', nickname: '第五位', avatar: '🐯', role: 'player', connected: true },
+      ],
+    };
+    render(<Lobby room={crowdedRoom} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
+
+    const order = screen.getAllByRole('radio').map((radio) => radio.textContent ?? '');
+    expect(order.map((text) => text.includes('谁最可能') ? 0 : text.includes('存钱罐') ? 1 : 2)).toEqual([0, 1, 2]);
+    expect(order[2]).toContain('限 4 人');
+    expect(order[0]).not.toContain('限 4 人');
+  });
+
+  it('人还没到齐时，人数不足的游戏沉底并提示还差几位', () => {
+    const twoPlayerRoom: RoomView = {
+      ...room,
+      players: [players[0]!, players[1]!],
+    };
+    render(<Lobby room={twoPlayerRoom} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
+
+    const order = screen.getAllByRole('radio').map((radio) => radio.textContent ?? '');
+    expect(order.map((text) => text.includes('怪兽汽车') ? 0 : text.includes('谁最可能') ? 1 : 2)).toEqual([0, 1, 2]);
+    expect(screen.getAllByText('还差 1 人')).toHaveLength(2);
+    expect(order[0]).not.toContain('还差 1 人');
+  });
+
+  it('详情区展示预计时长，并随轮数与游戏切换联动', async () => {
+    const user = userEvent.setup();
+    render(<Lobby room={room} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
+
+    expect(screen.getByText('约 6 分钟')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '5 轮' }));
+    expect(screen.getByText('约 10 分钟')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /怪兽汽车/ }));
+    expect(screen.getByText('约 4 分钟')).toBeInTheDocument();
+  });
+
   it('普通玩家不能开局，会明确看到正在等待房主', () => {
     render(<Lobby room={room} playerId="p2" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
     expect(screen.getByText('等房主开局，可以先热个身。')).toBeInTheDocument();

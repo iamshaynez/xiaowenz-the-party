@@ -31,16 +31,19 @@ describe('公网 HTTP 边界', () => {
         id: 'most-likely', version: 1, name: '谁最可能', emoji: '🗳️',
         description: '一道题，一票默契。看看在朋友眼里，谁是那个“十有八九”的人。',
         tags: ['破冰', '默契', '轻松'], roundsOptions: [3, 5, 8], minPlayers: 3, maxPlayers: 12,
+        rules: ['3–12 人', '不能投自己', '平票都得分'], englishName: "WHO'S MOST LIKELY", minutesPerRound: 2,
       },
       {
         id: 'piggy-bank', version: 1, name: '存钱罐', emoji: '🏺',
         description: '一起往存钱罐里攒钱，砸罐的人平分。天降事件随时搅局，落幕轮保密。',
         tags: ['家庭', '儿童', '反转'], roundsOptions: [4, 6, 8], minPlayers: 3, maxPlayers: 12,
+        rules: ['3–12 人', '锤子有限', '小心纸糊罐'], englishName: 'PIGGY BANK', minutesPerRound: 2,
       },
       {
         id: 'monster-car', version: 1, name: '怪兽汽车', emoji: '🚙',
         description: '装出全世界独一无二的怪车，一起穿过会互动的魔法森林。',
         tags: ['幼儿', '创作', '动画'], roundsOptions: [1], minPlayers: 2, maxPlayers: 4,
+        rules: ['2–4 人', '五部位自由组装', '30 秒森林竞演'], englishName: 'FOREST MOTOR CLUB', minutesPerRound: 4,
       },
     ]);
     expect(config.avatars).toContain('🦊');

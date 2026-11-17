@@ -39,6 +39,9 @@ export interface GameDefinition<State, View extends GameViewBase> {
   readonly emoji: string;
   readonly description: string;
   readonly tags: readonly string[];
+  readonly rules: readonly string[];
+  readonly englishName: string;
+  readonly minutesPerRound: number;
   readonly roundsOptions: readonly number[];
   readonly minPlayers: number;
   readonly maxPlayers: number;
@@ -56,6 +59,9 @@ export interface GameInfo {
   emoji: string;
   description: string;
   tags: readonly string[];
+  rules: readonly string[];
+  englishName: string;
+  minutesPerRound: number;
   roundsOptions: readonly number[];
   minPlayers: number;
   maxPlayers: number;
@@ -68,6 +74,9 @@ export function toGameInfo(definition: AnyGameDefinition): GameInfo {
     emoji: definition.emoji,
     description: definition.description,
     tags: definition.tags,
+    rules: definition.rules,
+    englishName: definition.englishName,
+    minutesPerRound: definition.minutesPerRound,
     roundsOptions: definition.roundsOptions,
     minPlayers: definition.minPlayers,
     maxPlayers: definition.maxPlayers,
