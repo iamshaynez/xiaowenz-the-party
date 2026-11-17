@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PartyRoom } from '@party/room';
+import {
+  MONSTER_CAR_PART_IDS,
+  MONSTER_CAR_SLOTS,
+  monsterCarBuildSchema,
+} from '@party/protocol';
 import type { GameAction } from '@party/protocol';
 import {
   COUNTDOWN_DURATION_MS,
@@ -217,6 +222,16 @@ describe('「怪兽汽车」确定性赛事与组件协议', () => {
     expect(changed.finishOrder).toEqual(first.finishOrder);
     expect(changed.racers.map((racer) => racer.pace)).toEqual(first.racers.map((racer) => racer.pace));
 
+    const expandedBuilds: Record<string, MonsterCarBuild> = {
+      owner: { wheels: 'banana', front: 'shark', rear: 'washing-machine', roof: 'teapot', driver: 'robot' },
+      p2: { wheels: 'duck-float', front: 'piano', rear: 'snail', roof: 'whale', driver: 'lion' },
+    };
+    const expanded = createMonsterCarRacePlan({ playerIds: ['owner', 'p2'], builds: expandedBuilds, seed: 98765, now: NOW });
+    expect(expanded.events).toEqual(first.events);
+    expect(expanded.finishOrder).toEqual(first.finishOrder);
+    expect(expanded.racers.map((racer) => racer.pace)).toEqual(first.racers.map((racer) => racer.pace));
+    expect(expanded.racers.map((racer) => racer.finishAtMs)).toEqual(first.racers.map((racer) => racer.finishAtMs));
+
     for (const racer of first.racers) {
       let previous = 0;
       for (let atMs = 0; atMs <= RACE_DURATION_MS; atMs += 100) {
@@ -233,21 +248,116 @@ describe('「怪兽汽车」确定性赛事与组件协议', () => {
     expect(first.racers.every((racer) => racer.cues.length >= first.events.length)).toBe(true);
   });
 
-  it('每个零件都属于正确槽位，每种标准刺激都有具体反应或安全回退', () => {
-    const stimuli: MonsterCarStimulus[] = ['water', 'impact', 'wind', 'slope'];
-    for (const [slot, parts] of Object.entries(MONSTER_CAR_PART_CATALOG)) {
-      expect(Object.keys(parts).length).toBeGreaterThanOrEqual(4);
-      for (const part of Object.values(parts)) expect(part.slot).toBe(slot);
-    }
-    for (const build of Object.values(builds)) {
-      for (const stimulus of stimuli) {
-        const reaction = resolveMonsterCarReaction(build, stimulus);
-        expect(reaction.primary.reaction.length).toBeGreaterThan(0);
-        expect(reaction.primary.durationMs).toBeGreaterThanOrEqual(500);
-        expect(reaction.primary.durationMs).toBeLessThanOrEqual(2_000);
-        expect(reaction.secondary.length).toBeGreaterThan(0);
+  it('协议与目录逐槽保持八款零件的精确一致，并保留全部旧 ID 顺序', () => {
+    expect(MONSTER_CAR_PART_IDS).toEqual({
+      wheels: ['classic', 'donut', 'spring', 'balloon', 'banana', 'square', 'bubble-tea', 'duck-float'],
+      front: ['smile', 'duck', 'train', 'scoop', 'shark', 'vacuum', 'ice-cream', 'piano'],
+      rear: ['trunk', 'rocket', 'bubble', 'tail', 'washing-machine', 'campfire', 'jackbox', 'snail'],
+      roof: ['mushroom', 'umbrella', 'propeller', 'antenna', 'teapot', 'birdcage', 'cactus', 'whale'],
+      driver: ['bear', 'frog', 'duck', 'alien', 'robot', 'penguin', 'ghost', 'lion'],
+    });
+    expect(MONSTER_CAR_SLOTS).toEqual(['wheels', 'front', 'rear', 'roof', 'driver']);
+
+    const baseBuild: MonsterCarBuild = {
+      wheels: 'classic', front: 'smile', rear: 'trunk', roof: 'mushroom', driver: 'bear',
+    };
+    for (const slot of MONSTER_CAR_SLOTS) {
+      const partIds = MONSTER_CAR_PART_IDS[slot];
+      expect(partIds).toHaveLength(8);
+      expect(Object.keys(MONSTER_CAR_PART_CATALOG[slot])).toEqual([...partIds]);
+      for (const partId of partIds) {
+        const parsed = monsterCarBuildSchema.parse({ ...baseBuild, [slot]: partId });
+        expect(parsed[slot]).toBe(partId);
       }
     }
+    expect(monsterCarBuildSchema.safeParse({ ...baseBuild, wheels: 'hover' }).success).toBe(false);
+  });
+
+  it('校验全部目录元数据与刺激响应，每个声明的响应都能成为主反应或互补反应', () => {
+    const stimuli: MonsterCarStimulus[] = ['water', 'impact', 'wind', 'slope'];
+    const idleValues = ['none', 'spin', 'bounce', 'sway', 'blink'];
+    const newReactionIds = new Set<string>();
+    const newHighlights = new Set<string>();
+    const baseBuild: MonsterCarBuild = {
+      wheels: 'classic', front: 'smile', rear: 'trunk', roof: 'mushroom', driver: 'bear',
+    };
+
+    for (const slot of MONSTER_CAR_SLOTS) {
+      for (const [index, partId] of MONSTER_CAR_PART_IDS[slot].entries()) {
+        const part = MONSTER_CAR_PART_CATALOG[slot][partId];
+        if (!part) throw new Error(`目录缺少零件：${slot}/${partId}`);
+        expect(part.slot).toBe(slot);
+        expect(part.label).toMatch(/[㐀-鿿]/u);
+        expect(part.emoji.trim()).not.toBe('');
+        expect(idleValues).toContain(part.idle);
+        const build = monsterCarBuildSchema.parse({ ...baseBuild, [slot]: partId });
+        let responseCount = 0;
+
+        for (const stimulus of stimuli) {
+          const response = part.responses[stimulus];
+          const resolved = resolveMonsterCarReaction(build, stimulus);
+          expect(resolved.primary.reaction.length).toBeGreaterThan(0);
+          expect(resolved.primary.durationMs).toBeGreaterThanOrEqual(500);
+          expect(resolved.primary.durationMs).toBeLessThanOrEqual(2_000);
+          expect(resolved.secondary.length).toBeGreaterThan(0);
+          if (!response) continue;
+          responseCount += 1;
+          expect(response.reaction).toMatch(/^[a-z][a-z0-9-]*$/);
+          expect(response.highlight).toMatch(/[㐀-鿿]/u);
+          expect(response.durationMs).toBeGreaterThanOrEqual(500);
+          expect(response.durationMs).toBeLessThanOrEqual(2_000);
+          expect(Number.isFinite(response.intensity)).toBe(true);
+          expect(response.intensity).toBeGreaterThan(0);
+          expect(response.intensity).toBeLessThanOrEqual(2);
+          expect([resolved.primary, ...resolved.secondary]).toContainEqual(expect.objectContaining({
+            partId,
+            slot,
+            reaction: response.reaction,
+            highlight: response.highlight,
+          }));
+
+          if (index >= 4) {
+            expect(newReactionIds.has(response.reaction)).toBe(false);
+            expect(newHighlights.has(response.highlight)).toBe(false);
+            newReactionIds.add(response.reaction);
+            newHighlights.add(response.highlight);
+          }
+        }
+        if (index >= 4) expect(responseCount).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('把非主零件的专属响应加入 secondary，同时保留司机与车身回退', () => {
+    const complementary = resolveMonsterCarReaction(builds.p2!, 'water');
+    expect(complementary.primary).toMatchObject({ partId: 'donut', reaction: 'donut-splash' });
+    expect(complementary.secondary).toEqual([
+      expect.objectContaining({
+        partId: 'bubble', slot: 'rear', reaction: 'bubble-foam', durationMs: 1_650, intensity: 1.2,
+      }),
+      expect.objectContaining({
+        partId: 'bear', slot: 'driver', reaction: 'driver-water', durationMs: 1_100, intensity: 0.55,
+      }),
+    ]);
+
+    const driverPrimary = resolveMonsterCarReaction({
+      wheels: 'classic', front: 'smile', rear: 'bubble', roof: 'antenna', driver: 'frog',
+    }, 'water');
+    expect(driverPrimary.primary).toMatchObject({ partId: 'frog', reaction: 'frog-croak' });
+    expect(driverPrimary.secondary).toEqual([
+      expect.objectContaining({ partId: 'bubble', slot: 'rear', reaction: 'bubble-foam' }),
+      expect.objectContaining({
+        partId: 'chassis', slot: 'chassis', reaction: 'chassis-wiggle', durationMs: 900, intensity: 0.45,
+      }),
+    ]);
+
+    const generic = resolveMonsterCarReaction({
+      wheels: 'classic', front: 'smile', rear: 'trunk', roof: 'mushroom', driver: 'bear',
+    }, 'wind');
+    expect(generic.primary).toMatchObject({ partId: 'chassis', reaction: 'classic-wind' });
+    expect(generic.secondary).toEqual([
+      expect.objectContaining({ partId: 'bear', reaction: 'driver-wind', highlight: '最佳乘客表情' }),
+    ]);
   });
 
   it('最终名次在不同种子间随机变化，不由玩家数组顺序固定', () => {

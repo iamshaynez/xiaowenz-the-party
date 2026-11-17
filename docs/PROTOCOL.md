@@ -95,13 +95,15 @@
 
 | 槽位 | 合法零件 ID |
 | --- | --- |
-| `wheels` | `classic` / `donut` / `spring` / `balloon` |
-| `front` | `smile` / `duck` / `train` / `scoop` |
-| `rear` | `trunk` / `rocket` / `bubble` / `tail` |
-| `roof` | `mushroom` / `umbrella` / `propeller` / `antenna` |
-| `driver` | `bear` / `frog` / `duck` / `alien` |
+| `wheels` | `classic` / `donut` / `spring` / `balloon` / `banana` / `square` / `bubble-tea` / `duck-float` |
+| `front` | `smile` / `duck` / `train` / `scoop` / `shark` / `vacuum` / `ice-cream` / `piano` |
+| `rear` | `trunk` / `rocket` / `bubble` / `tail` / `washing-machine` / `campfire` / `jackbox` / `snail` |
+| `roof` | `mushroom` / `umbrella` / `propeller` / `antenna` / `teapot` / `birdcage` / `cactus` / `whale` |
+| `driver` | `bear` / `frog` / `duck` / `alien` / `robot` / `penguin` / `ghost` / `lion` |
 
 缺件、额外字段、非法零件或错误动作形状在 WebSocket schema 边界返回 `INVALID_MESSAGE`。`build-car` 仅限本局参与者且只能在 `building` 使用；每次成功提交会保存 build 并标记 ready，准备后仍可用**新的** `actionId` 改装。同一动作重发沿用通用幂等规则，同 `actionId` 换 build 返回 `ACTION_CONFLICT`。`play-again` 只允许房主在 `finished` 使用。
+
+当前五槽各八款、共 40 个合法 ID。此次扩展保留全部旧 ID 及其数组顺序，只在各槽末尾追加新 ID；`monster-car` 游戏版本和房间快照 `schemaVersion` 都保持 1。旧版本 1 build/plan 快照因此仍可恢复，且不需要新增协议字段；包含新 ID 的快照不能回滚给只认识旧 20 款的实现。
 
 离开与 ping：
 
@@ -167,7 +169,7 @@ interface MonsterCarRacePlan {
 | `racers[]` | `playerId`、公开 `build`、`lane`、`paint`、`finishAtMs`、`pace`、`cues`、`highlight`。lane/paint 是展示属性，不是权限或成绩输入。 |
 | `pace[]` | `{ atMs, progress }` 关键帧；从 `{ 0, 0 }` 到 `{ finishAtMs, 1 }`，共六段配速。 |
 | `cues[]` | 每个赛道事件对应一项：`eventId`、`environment`、`stimulus`、`startAtMs`、`durationMs`、`intensity`、`primary`、`secondary`。 |
-| `primary` / `secondary[]` | 已解析的反应：`reaction`、`durationMs`、`intensity`、`highlight`、`partId`、`slot`。slot 可为五槽之一或 `chassis`。 |
+| `primary` / `secondary[]` | 一项主反应与至少一项次要反应；每项均为 `reaction`、`durationMs`、`intensity`、`highlight`、`partId`、`slot`。slot 可为五槽之一或 `chassis`。 |
 | `finishOrder` | 服务端用种子洗牌的玩家 ID 顺序；终局 standings 必须按它生成。零件不影响该顺序或 pace。 |
 
 整个 plan 可 JSON 序列化，并保存在游戏版本 1 的房间快照中。比赛中服务重启或玩家重连会恢复同一 plan 和时间边界，不重新生成种子或名次。
@@ -180,6 +182,8 @@ interface MonsterCarRacePlan {
 
 浏览器在 ready/重连后发送现有 `ping`，用 `pong.now` 与往返中点估算服务端时钟偏移，再根据 `raceStartsAt` 计算 elapsed 并在本地 `requestAnimationFrame` 中采样。该偏移只校正显示，不成为权威输入。`MonsterCarRaceFrame`、车辆坐标与 HUD 更新**不是 WebSocket 消息类型**，客户端不能通过它们提交位置或名次。服务端在 racing 中途没有业务变化时不发送周期性 `room` 帧，只在进入 `racing`、进入 `finished` 等其他状态变化时同步。WebGL 降级路径也调用同一纯采样函数，不依赖 canvas 提供 HUD 帧。
 
+进入 `finished` 后，权威视图、时间边界和 standings 均保持既有结构。`PlaygroundMotion` 只根据同一 plan 与本地赛后绝对时间持续计算绕行/跳跃，`FireworksField` 和结果卡自动收起也都发生在浏览器；没有 `celebrating` 阶段、赛后位置消息、结果卡计时消息或新增快照字段。
+
 ### 反应协议与通用回退
 
 `resolveMonsterCarReaction(build, stimulus)` 在创建计划时解析反应。对每种刺激，按以下顺序找第一个声明了专属响应的槽位：
@@ -191,7 +195,11 @@ interface MonsterCarRacePlan {
 | `wind` | roof → rear → driver → wheels → front |
 | `slope` | wheels → rear → roof → front → driver |
 
-没有专属响应时，primary 使用 `partId: "chassis"`、`slot: "chassis"` 的通用反应：`classic-splash`、`classic-bump`、`classic-wind` 或 `classic-slope`。通常会再生成一项司机 secondary；司机没有专属响应时使用 `driver-water` / `driver-impact` / `driver-wind` / `driver-slope`，若 primary 已是司机，则 secondary 改为 `chassis-wiggle`。反应只驱动外观、粒子和高光，不影响配速或名次。20 款零件的响应目录见 [怪兽汽车资产与反应协议](CAR_ASSETS.md)。
+没有专属响应时，primary 使用 `partId: "chassis"`、`slot: "chassis"` 的通用反应：`classic-splash`、`classic-bump`、`classic-wind` 或 `classic-slope`。
+
+`secondary` 数组先按同一槽位优先级收集所有满足以下条件的专属响应：槽位不是 driver，且不是 primary 所在槽位。随后追加一项司机反应：司机有专属响应时复用其 reaction/highlight，否则使用 `driver-water` / `driver-impact` / `driver-wind` / `driver-slope` 和“最佳乘客表情”；普通司机项的 intensity 为 0.55，时长为 `min(primary.durationMs, 1100ms)`。若 primary 来自 driver，则不再追加司机项，而追加 `partId/slot: "chassis"` 的 `chassis-wiggle`（900ms、intensity 0.45、highlight“快乐车身”）。因此每个 cue 至少有一项 secondary，也可能同时包含多个非主零件的专属响应。
+
+这些反应在创建计划时解析并持久化到既有 cue 字段中。渲染端 primary 驱动整车和主零件，secondary 按各自时长独立采样并叠加局部动作；反应粒子只采用 primary 的粒子类型。反应只驱动外观、粒子和高光，不影响配速或名次。40 款零件的响应以 `packages/games/src/monster-car/parts.ts` 为目录真源，运动配置以 `ReactionLibrary.ts` 为真源；资产边界和维护规则见 [怪兽汽车资产与反应协议](CAR_ASSETS.md)，文档不另复制一张容易失配的完整反应表。
 
 ## 常见错误码
 

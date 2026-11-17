@@ -5,11 +5,11 @@ export type MonsterCarSlot = (typeof MONSTER_CAR_SLOTS)[number];
 
 // 零件 ID 是网络、快照与渲染器之间的稳定契约；展示名和动画可以独立迭代。
 export const MONSTER_CAR_PART_IDS = {
-  wheels: ['classic', 'donut', 'spring', 'balloon'],
-  front: ['smile', 'duck', 'train', 'scoop'],
-  rear: ['trunk', 'rocket', 'bubble', 'tail'],
-  roof: ['mushroom', 'umbrella', 'propeller', 'antenna'],
-  driver: ['bear', 'frog', 'duck', 'alien'],
+  wheels: ['classic', 'donut', 'spring', 'balloon', 'banana', 'square', 'bubble-tea', 'duck-float'],
+  front: ['smile', 'duck', 'train', 'scoop', 'shark', 'vacuum', 'ice-cream', 'piano'],
+  rear: ['trunk', 'rocket', 'bubble', 'tail', 'washing-machine', 'campfire', 'jackbox', 'snail'],
+  roof: ['mushroom', 'umbrella', 'propeller', 'antenna', 'teapot', 'birdcage', 'cactus', 'whale'],
+  driver: ['bear', 'frog', 'duck', 'alien', 'robot', 'penguin', 'ghost', 'lion'],
 } as const satisfies Record<MonsterCarSlot, readonly string[]>;
 
 export const monsterCarBuildSchema = z.object({
