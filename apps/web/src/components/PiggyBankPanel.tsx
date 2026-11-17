@@ -3,7 +3,7 @@ import { Coins, Hammer, PartyPopper, RotateCcw, Shield, Timer, Users } from 'luc
 import type { PiggyBankView } from '../types';
 import { Brand } from './Brand';
 import { playerAvatarOf, playerNameOf } from './playerDisplay';
-import type { GamePanelProps } from './MostLikelyPanel';
+import type { GamePanelProps } from './gamePanelTypes';
 
 const EVENT_LABELS: Record<string, string> = {
   rain: '💰 金币雨 · 罐子额外多攒 2 枚/人',

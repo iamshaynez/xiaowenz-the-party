@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Crown, PartyPopper, RotateCcw, Timer, Trophy, Users } from 'lucide-react';
-import type { GameAction, RoomView } from '@party/protocol';
 import type { MostLikelyView } from '../types';
+import type { GamePanelProps } from './gamePanelTypes';
 import { Brand } from './Brand';
 import { playerAvatarOf, playerNameOf } from './playerDisplay';
-
-export interface GamePanelProps {
-  room: RoomView;
-  playerId: string;
-  onAction: (action: GameAction) => void;
-  pending: boolean;
-}
 
 export function MostLikelyPanel({ room, playerId, onAction, pending }: GamePanelProps) {
   const game = room.game as MostLikelyView;
