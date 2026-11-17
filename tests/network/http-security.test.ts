@@ -45,6 +45,30 @@ describe('公网 HTTP 边界', () => {
         tags: ['幼儿', '创作', '动画'], roundsOptions: [1], minPlayers: 2, maxPlayers: 4,
         rules: ['2–4 人', '五部位自由组装', '30 秒森林竞演'], englishName: 'FOREST MOTOR CLUB', minutesPerRound: 4,
       },
+      {
+        id: 'gomoku', version: 1, name: '五子棋', emoji: '⚫',
+        description: '一张木棋盘，黑白两色。先连成五子的人赢，简单纯粹。',
+        tags: ['棋牌', '双人', '策略'], roundsOptions: [1, 3, 5], minPlayers: 2, maxPlayers: 2,
+        rules: ['2 人', '先连五子者胜', '多盘制轮流执黑'], englishName: 'GOMOKU', minutesPerRound: 3,
+      },
+      {
+        id: 'ludo', version: 1, name: '飞行棋', emoji: '✈️',
+        description: '掷骰子、起飞、跳格、飞行、撞机！先把四架飞机全部送回大本营。',
+        tags: ['棋牌', '骰子', '家庭'], roundsOptions: [1], minPlayers: 2, maxPlayers: 4,
+        rules: ['2–4 人', '掷 6 起飞并追加一掷', '己色格跳跃，飞行格跨越棋盘'], englishName: 'AEROPLANE CHESS', minutesPerRound: 8,
+      },
+      {
+        id: 'dou-dizhu', version: 1, name: '斗地主', emoji: '🃏',
+        description: '一副牌三个人，叫分抢地主，炸弹翻倍，春天更翻倍。',
+        tags: ['棋牌', '扑克', '策略'], roundsOptions: [1, 3, 5], minPlayers: 3, maxPlayers: 3,
+        rules: ['3 人', '叫 1/2/3 分定地主', '炸弹与春天逐次翻倍'], englishName: 'FIGHT THE LANDLORD', minutesPerRound: 4,
+      },
+      {
+        id: 'texas-holdem', version: 1, name: '德州扑克', emoji: '♠️',
+        description: '两张底牌，无限注。盲注逐级上升，边池按国际规则结算，摊牌见真章。',
+        tags: ['棋牌', '扑克', '博弈'], roundsOptions: [1, 3, 5, 8], minPlayers: 2, maxPlayers: 6,
+        rules: ['2–6 人', '起始 2000 筹码 vs 10/20 盲注', '每 6 手盲注翻倍'], englishName: "TEXAS HOLD'EM", minutesPerRound: 3,
+      },
     ]);
     expect(config.avatars).toContain('🦊');
     expect(JSON.stringify(config)).not.toContain('resumeToken');

@@ -5,7 +5,7 @@
 ## 1. 项目速览
 
 - **产品**：碰头 · PARTY，轻量、移动端优先的实时聚会游戏平台。
-- **当前游戏**：`most-likely`（谁最可能）与 `piggy-bank`（存钱罐）为 3–12 人，`monster-car`（怪兽汽车）为 2–4 人；通过房间码或二维码加入，无需注册或下载。
+- **当前游戏**：`most-likely`（谁最可能）与 `piggy-bank`（存钱罐）为 3–12 人，`monster-car`（怪兽汽车）为 2–4 人，`gomoku`（五子棋）为 2 人，`ludo`（飞行棋）为 2–4 人，`dou-dizhu`（斗地主）为 3 人，`texas-holdem`（德州扑克）为 2–6 人；通过房间码或二维码加入，无需注册或下载。
 - **生产地址**：<https://party.xiaowenz.com>。
 - **技术栈**：Node.js 22+、TypeScript、React、Vite、Fastify、WebSocket、Three.js、pnpm monorepo、Vitest、Playwright。
 - **核心形态**：浏览器只发送玩家意图，Node 单进程维护按房间隔离的权威状态机，并向每名玩家发送裁剪后的视图。
@@ -45,7 +45,7 @@ apps/
 packages/
   protocol/            客户端/服务端共享 DTO、消息 schema、公开常量
   game-core/           GameDefinition、动作上下文、领域错误
-  games/               游戏纯状态机、内置题库、零件反应与确定性赛事计划
+  games/               游戏纯状态机、内置题库、零件反应、确定性赛事计划与棋牌规则引擎
   room/                房间生命周期、身份权限、游戏组合根
 tests/
   business/            玩家可见业务规则与领域边界
@@ -148,6 +148,18 @@ git branch -D feat/<short-name>  # squash merge 后，确认 PR 已合并再删�
 - `monster-car`：2–4 人、单场 `rounds: 1`、游戏版本 1；五个槽位各八款零件，共 40 款。120 秒组装（全员准备可提前结束）→ 3.2 秒倒计时 → 30 秒竞演 → 结算与本地持续庆典。完赛顺序由种子随机决定，与零件无关；零件只影响外观、primary/secondary 反应、高光与社交互动。公开 `RacePlan` 支持 JSON 快照和任意时刻确定性采样，竞演与赛后游乐场都不逐帧广播；再来一局保留已提交 build、重置其余赛事状态并生成新种子。
 
 任意游戏到达 `finished` 后，房主可发送房间级 `end-game` 结束本局回大厅：`game` 清空、`phase` 回到 `lobby`，所有旁观者转回参与者，之后可换游戏重新开局。该动作仅在 `finished` 可用、复用 `actionId` 幂等、不改快照结构；`monster-car` 的 build 保留只属于 `play-again`，回大厅后重开为全新一局。
+
+#### 棋牌室（gomoku / ludo / dou-dizhu / texas-holdem）
+
+四款标准桌面游戏共用 `apps/web/src/components/tabletop/` 渲染套件：`TabletopStage.ts`（俱乐部灯光、机位阻尼相机、WebGL 宿主）、`textures.ts`（木纹/毛毡/牌面/筹码/骰子等全程序化 Canvas 纹理，带缓存）、`props.ts`（扑克牌/筹码柱/骰子/徽章工厂；几何与材质共享缓存，`userData.shared` 标记的资产不做释放）。修改时遵守：
+
+- 扑克牌号是共享契约：`suit = floor(id/13)`、`rank = id%13`（0='2'…12='A'，A 大）、52/53 为小/大王；斗地主与德州扑克共用，不得重排或复用编号。
+- 五子棋：15×15 自由长连规则，`next-board` 仅房主提前推进，超时服务端自动落子（中心螺旋首个空位，确定性）。
+- 飞行棋：骰子只由服务端掷；`move-plane` 的 `plane` 是**相对本机**编号 0–3（服务端换算全局），视图 `movablePlanes` 同为相对编号；己色格 p%4==2 跳 +4、p==18 飞 +12 可连跳、终点反弹、三连 6 作废。棋盘几何纯函数（`ringCellWorld`/`homeCellWorld`/`hangarSlotWorld`/`planeWorld`）可无 WebGL 测试。
+- 斗地主：叫分 1/2/3 每人一次、两轮流局后强制坐庄；倍数 = 叫分 ×2^炸弹 ×春天/反春；牌型引擎在 `packages/games/src/dou-dizhu/combo.ts`（`parseDouDizhuCombo`/`douDizhuBeats`），UI 即时校验复用同一实现但服务端是最终权威。手牌与底牌按玩家裁剪，`revealedHands` 只在手牌结果后公开。
+- 德州扑克：起始 2000 vs 盲注 10/20（100BB）、每 6 手翻倍；`bet`/`raise-to` 的 amount 均为本街投入总额；最小加注线、短全下不重开行动权、未跟注退款、边池分层与零头筹码顺时针分配都按国际惯例在服务端结算；牌力评估在 `packages/games/src/texas-holdem/evaluator.ts`。弃牌者的底牌永不进入任何视图。
+- 四款游戏超时都自动托管（能过则过/面对下注弃牌/斗地主跟牌自动不要/飞行棋自动掷骰与移动），托管行为必须是确定性的纯函数。
+- 面板的 `onFailure` 必须用 `useCallback` 固定引用——内联函数会让 3D 画布随每次快照整体重建（已踩过坑）。WebGL 不可用时切换 DOM 降级（棋盘按钮网格/文字手牌/文字牌桌），键盘操作（五子棋方向键+回车、斗地主 ←→/空格/回车）与指针操作并存。
 
 `most-likely` 题库位于 `packages/games/src/prompts.ts`，当前为 **100 道静态题、10 个类别**；每类编辑结构为 **6 道喜剧向 + 4 道轻松向**。修改题库时：
 

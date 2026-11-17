@@ -11,7 +11,8 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 棋牌室 e2e 增加四个真实 WebGL 场景；GitHub runner 为软件渲染，15 分钟不够。
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
