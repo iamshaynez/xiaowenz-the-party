@@ -21,7 +21,9 @@ export function usePartyRoom(code: string, services: PartyServices) {
   const [pending, setPending] = useState(false);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
   const connectionRef = useRef<PartyConnection | null>(null);
+  const pingSentAtRef = useRef(0);
 
   useEffect(() => {
     if (!session) {
@@ -43,8 +45,14 @@ export function usePartyRoom(code: string, services: PartyServices) {
             setStatus('connected');
             setRoom(message.session.room);
             setError(null);
+            pingSentAtRef.current = Date.now();
+            connectionRef.current?.send({ type: 'ping' });
           } else if (message.type === 'room') {
             setRoom((previous) => !previous || message.room.version >= previous.version ? message.room : previous);
+          } else if (message.type === 'pong') {
+            const receivedAt = Date.now();
+            const roundTripMs = Math.max(0, receivedAt - pingSentAtRef.current);
+            setServerClockOffsetMs(message.now + roundTripMs / 2 - receivedAt);
           } else if (message.type === 'action-ack') {
             setPending(false);
           } else if (message.type === 'error') {
@@ -95,6 +103,7 @@ export function usePartyRoom(code: string, services: PartyServices) {
     pending,
     joining,
     error,
+    serverClockOffsetMs,
     async join(profile: ProfileInput) {
       setJoining(true);
       setError(null);

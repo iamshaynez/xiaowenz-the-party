@@ -18,6 +18,13 @@ interface LobbyProps {
 const GAME_RULES: Record<GameId, string[]> = {
   'most-likely': ['3–12 人', '不能投自己', '平票都得分'],
   'piggy-bank': ['3–12 人', '锤子有限', '小心纸糊罐'],
+  'monster-car': ['2–4 人', '五部位自由组装', '30 秒森林竞演'],
+};
+
+const GAME_ENGLISH: Record<GameId, string> = {
+  'most-likely': "WHO'S MOST LIKELY",
+  'piggy-bank': 'PIGGY BANK',
+  'monster-car': 'FOREST MOTOR CLUB',
 };
 
 export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps) {
@@ -108,7 +115,7 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
             ))}
           </div>
           <div className="game-setup-card__body">
-            <span className="mini-label">{selectedId === 'most-likely' ? "WHO'S MOST LIKELY" : 'PIGGY BANK'}</span>
+            <span className="mini-label">{GAME_ENGLISH[selectedId]}</span>
             <h2>{selected.name}</h2>
             <p>{selected.description}</p>
             <div className="game-tags">
@@ -119,16 +126,21 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
             </div>
             {isOwner ? (
               <>
-                <div className="round-picker-label">玩几轮？</div>
-                <div className="round-picker" aria-label="游戏轮数">
-                  {selected.roundsOptions.map((value) => (
-                    <button key={value} type="button" className={rounds === value ? 'is-active' : ''} onClick={() => setRounds(value)}>{value} 轮</button>
-                  ))}
-                </div>
-                <button className="primary-button start-button" type="button" disabled={playerCount < selected.minPlayers || pending} onClick={() => onStart(selectedId, rounds)}>
+                {selected.roundsOptions.length > 1 && (
+                  <>
+                    <div className="round-picker-label">玩几轮？</div>
+                    <div className="round-picker" aria-label="游戏轮数">
+                      {selected.roundsOptions.map((value) => (
+                        <button key={value} type="button" className={rounds === value ? 'is-active' : ''} onClick={() => setRounds(value)}>{value} 轮</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <button className="primary-button start-button" type="button" disabled={playerCount < selected.minPlayers || playerCount > selected.maxPlayers || pending} onClick={() => onStart(selectedId, rounds)}>
                   <Play size={19} fill="currentColor" />{pending ? '正在开局…' : '开始游戏'}<ArrowRight size={19} />
                 </button>
                 {playerCount < selected.minPlayers && <p className="inline-hint">还差 {selected.minPlayers - playerCount} 位朋友就能开局</p>}
+                {playerCount > selected.maxPlayers && <p className="inline-hint">「{selected.name}」最多 {selected.maxPlayers} 位玩家，请选择其他游戏</p>}
               </>
             ) : (
               <div className="waiting-owner"><span className="waiting-owner__dots"><i /><i /><i /></span>等房主开局，可以先热个身。</div>
