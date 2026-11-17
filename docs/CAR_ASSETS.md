@@ -362,7 +362,7 @@ Three.js 每个显示帧在本地采样，React HUD 的本地回调最多每 125
 
 真实 WebGL 是否成功必须由 Chromium E2E 验证。jsdom 不提供真实 GPU 帧管线：`monster-car.test.tsx` 的 mock canvas 和 mock PartThumbnail 只能证明 React 数据流、分页/惊喜草稿与回退；`monster-car-rendering.test.tsx` 证明无 WebGL 的模型/运动协议；`monster-car-presentation.test.tsx` 证明 CarIdentity/ShowPlan/社交/RaceCamera 纯函数及 WeatherField 固定资源契约；`monster-car-celebration.test.tsx` 证明基础 PlaygroundMotion 与 FireworksField；`monster-car-finale.test.tsx` 证明 2/3/4 车循环编队、静止合影和 PlaygroundCamera 构图。它们都不能单独证明 `running`、shader 编译、真实 GPU 资源释放或完整 DOM 回退路径。
 
-Chromium E2E 只检查真实 canvas running、当前页四张缩略图 loaded、稳定阶段范围、两端故事/最终 standings 一致、刷新恢复、结果卡与重开后已提交零件保留。不要把它写成对某个瞬时倒计时数字、途中名次、反应姿态、天气粒子、社交镜头或合影帧的断言；截图只是附件。正常与降级测试边界见 `docs/TESTING.md`。
+Chromium E2E 将车库交互与完整竞演拆成两个独立场景，各自创建/关闭浏览器上下文并受单独超时约束。车库场景检查真实 canvas running、当前页四张缩略图 loaded、翻页、惊喜与旋转；竞演场景检查稳定阶段范围、两端故事/最终 standings 一致、刷新恢复、结果卡与重开后已提交零件保留。不要把它写成对某个瞬时倒计时数字、途中名次、反应姿态、天气粒子、社交镜头或合影帧的断言；截图只是附件。正常与降级测试边界见 `docs/TESTING.md`。
 
 ## 修改零件或资产的检查清单
 
