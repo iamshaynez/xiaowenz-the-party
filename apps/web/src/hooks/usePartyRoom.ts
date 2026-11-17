@@ -120,6 +120,9 @@ export function usePartyRoom(code: string, services: PartyServices) {
     start(gameId: GameId, rounds: number) {
       send({ type: 'start-game', actionId: actionId(), gameId, rounds });
     },
+    endGame() {
+      send({ type: 'end-game', actionId: actionId() });
+    },
     act(action: GameAction) {
       send({ type: 'game-action', actionId: actionId(), action });
     },

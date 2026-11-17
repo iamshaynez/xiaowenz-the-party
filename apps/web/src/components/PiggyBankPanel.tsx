@@ -11,7 +11,7 @@ const EVENT_LABELS: Record<string, string> = {
   blind: '🌀 盲罐轮 · 黑暗中投币，罐里金额保密',
 };
 
-export function PiggyBankPanel({ room, playerId, onAction, pending }: GamePanelProps) {
+export function PiggyBankPanel({ room, playerId, onAction, onEndGame, pending }: GamePanelProps) {
   const game = room.game as PiggyBankView;
   const [now, setNow] = useState(Date.now());
   const isOwner = room.ownerId === playerId;
@@ -149,9 +149,14 @@ export function PiggyBankPanel({ room, playerId, onAction, pending }: GamePanelP
             ))}
           </div>
           {isOwner ? (
-            <button className="primary-button next-round-button" type="button" onClick={() => onAction({ type: 'play-again' })} disabled={pending}>
-              <RotateCcw size={19} />再来一局
-            </button>
+            <>
+              <button className="primary-button next-round-button" type="button" onClick={() => onAction({ type: 'play-again' })} disabled={pending}>
+                <RotateCcw size={19} />再来一局
+              </button>
+              <button className="change-game-button" type="button" onClick={onEndGame} disabled={pending}>
+                换个游戏
+              </button>
+            </>
           ) : <p className="waiting-owner waiting-owner--dark">想再来一局？催催房主。</p>}
         </section>
       )}

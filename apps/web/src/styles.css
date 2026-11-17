@@ -280,6 +280,8 @@ button { border: 0; }
 .tally-row.is-winner .tally-row__bar span { background: var(--lime); }
 .tally-row__count { min-width: 38px; color: var(--lime); text-align: right; font-size: 13px; }
 .next-round-button { width: 100%; margin-top: 22px; }
+.change-game-button { width: 100%; margin-top: 10px; min-height: 46px; color: var(--ink); background: transparent; border: 2px solid rgba(21,26,45,.28); border-radius: 16px; font-size: 12px; font-weight: 700; }
+.change-game-button:hover { background: rgba(21,26,45,.06); }
 .waiting-owner--dark { margin-top: 22px; color: var(--muted); background: var(--surface); }
 .final-stage { max-width: 620px; margin: 0 auto; text-align: center; }
 .final-stage__trophy { display: grid; place-items: center; width: 78px; height: 78px; margin: 0 auto 20px; color: var(--ink); background: var(--lime); border-radius: 25px; transform: rotate(-7deg); box-shadow: 7px 8px 0 rgba(0,0,0,.2); }

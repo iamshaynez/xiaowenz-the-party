@@ -37,7 +37,7 @@ describe('存钱罐：手机抉择与揭晓', () => {
   it('展示罐中金额，点击守护或砸罐提交明确的游戏动作', async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
-    render(<GamePanel room={roomWith(choosingGame)} playerId="owner" onAction={onAction} pending={false} />);
+    render(<GamePanel room={roomWith(choosingGame)} playerId="owner" onAction={onAction} onEndGame={vi.fn()} pending={false} />);
 
     expect(screen.getByText('9')).toBeInTheDocument();
     expect(screen.getByText('枚金币')).toBeInTheDocument();
@@ -49,20 +49,20 @@ describe('存钱罐：手机抉择与揭晓', () => {
   });
 
   it('烫手罐提示只许拿走一半', () => {
-    render(<GamePanel room={roomWith({ ...choosingGame, event: 'hot' })} playerId="owner" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith({ ...choosingGame, event: 'hot' })} playerId="owner" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
     expect(screen.getByText('🔥 烫手罐 · 这轮砸罐只能拿走一半')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '打破罐子拿走 4 枚' })).toBeInTheDocument();
   });
 
   it('盲罐轮隐藏罐中金额', () => {
-    render(<GamePanel room={roomWith({ ...choosingGame, event: 'blind', pot: null })} playerId="owner" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith({ ...choosingGame, event: 'blind', pot: null })} playerId="owner" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
     expect(screen.getByText('🌀 盲罐轮 · 黑暗中投币，罐里金额保密')).toBeInTheDocument();
     expect(screen.getByText('金额保密')).toBeInTheDocument();
     expect(screen.queryByText('枚金币')).not.toBeInTheDocument();
   });
 
   it('锤子用完后不再展示选择按钮，只提示自动守护', () => {
-    render(<GamePanel room={roomWith({ ...choosingGame, ownHammers: 0, hammers: { owner: 0, p2: 2, p3: 1 } })} playerId="owner" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith({ ...choosingGame, ownHammers: 0, hammers: { owner: 0, p2: 2, p3: 1 } })} playerId="owner" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
     expect(screen.getByText('🔨 你的锤子用完了，这几轮自动守护，坐等终局平分。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '守护罐子' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /打破罐子/ })).not.toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('存钱罐：手机抉择与揭晓', () => {
         blindBonus: 0,
       },
     };
-    render(<GamePanel room={roomWith(game)} playerId="owner" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith(game)} playerId="owner" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
 
     expect(screen.getByText('🃏 纸糊罐！')).toBeInTheDocument();
     expect(screen.getByText('小文 砸了个寂寞')).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe('存钱罐：手机抉择与揭晓', () => {
       finalSplit: 2,
       winners: ['owner'],
     };
-    render(<GamePanel room={roomWith(game)} playerId="p2" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith(game)} playerId="p2" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
 
     expect(screen.getByText('今晚的存钱罐之王')).toBeInTheDocument();
     expect(screen.getByText('终局信任加成：剩下的罐子每人分得 2 枚')).toBeInTheDocument();
