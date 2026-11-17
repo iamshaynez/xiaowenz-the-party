@@ -93,8 +93,10 @@ describe('派对大厅', () => {
     render(<Lobby room={crowdedRoom} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
 
     const order = screen.getAllByRole('radio').map((radio) => radio.textContent ?? '');
-    expect(order.map((text) => text.includes('谁最可能') ? 0 : text.includes('存钱罐') ? 1 : 2)).toEqual([0, 1, 2]);
-    expect(order[2]).toContain('限 4 人');
+    // 5 人在场：谁最可能/存钱罐/德州扑克可玩，其余四款超员沉底。
+    expect(order.map((text) => text.includes('谁最可能') ? 0 : text.includes('存钱罐') ? 1 : 2)).toEqual([0, 1, 2, 2, 2, 2, 2]);
+    expect(order.find((text) => text.includes('怪兽汽车'))).toContain('限 4 人');
+    expect(order.find((text) => text.includes('斗地主'))).toContain('限 3 人');
     expect(order[0]).not.toContain('限 4 人');
   });
 
@@ -106,8 +108,9 @@ describe('派对大厅', () => {
     render(<Lobby room={twoPlayerRoom} playerId="owner" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
 
     const order = screen.getAllByRole('radio').map((radio) => radio.textContent ?? '');
-    expect(order.map((text) => text.includes('怪兽汽车') ? 0 : text.includes('谁最可能') ? 1 : 2)).toEqual([0, 1, 2]);
-    expect(screen.getAllByText('还差 1 人')).toHaveLength(2);
+    // 2 人在场：怪兽汽车/五子棋/飞行棋/德州扑克可玩，三个 3+ 游戏沉底。
+    expect(order.map((text) => text.includes('怪兽汽车') ? 0 : text.includes('谁最可能') ? 1 : 2)).toEqual([0, 2, 2, 2, 1, 2, 2]);
+    expect(screen.getAllByText('还差 1 人')).toHaveLength(3);
     expect(order[0]).not.toContain('还差 1 人');
   });
 

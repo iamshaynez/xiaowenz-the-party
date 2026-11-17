@@ -50,7 +50,7 @@
 { "type": "authenticate", "sessionId": "s_…", "resumeToken": "rt_…" }
 ```
 
-开局（`gameId` 取 `most-likely`、`piggy-bank` 或 `monster-car`；轮数在 1–8 间，具体可选值由各游戏决定，如「存钱罐」支持 4/6/8，「怪兽汽车」只接受 1）：
+开局（`gameId` 取 `most-likely`、`piggy-bank`、`monster-car`、`gomoku`、`ludo`、`dou-dizhu` 或 `texas-holdem`；轮数在 1–8 间，具体可选值由各游戏决定，如「存钱罐」支持 4/6/8，「怪兽汽车」「飞行棋」只接受 1）：
 
 ```json
 { "type": "start-game", "actionId": "web-uuid", "gameId": "most-likely", "rounds": 3 }
@@ -112,6 +112,64 @@
 缺件、额外字段、非法零件或错误动作形状在 WebSocket schema 边界返回 `INVALID_MESSAGE`。`build-car` 仅限本局参与者且只能在 `building` 使用；每次成功提交会保存 build 并标记 ready，准备后仍可用**新的** `actionId` 改装。同一动作重发沿用通用幂等规则，同 `actionId` 换 build 返回 `ACTION_CONFLICT`。`play-again` 只允许房主在 `finished` 使用；它保留所有参与者最后提交的 build，清空 readyPlayerIds/plan/standings 和赛事时间边界，并用新的服务端种子回到 `building`。未提交的本地草稿不会被保存或重放。
 
 当前五槽各八款、共 40 个合法 ID。此次扩展保留全部旧 ID 及其数组顺序，只在各槽末尾追加新 ID；`monster-car` 游戏版本和房间快照 `schemaVersion` 都保持 1。旧版本 1 build/plan 快照因此仍可恢复，且不需要新增协议字段；包含新 ID 的快照不能回滚给只认识旧 20 款的实现。四款一页的货架、指针旋转、本地“惊喜一下”、ShowPlan、身份旗、故事/天气/社交/相机和循环合影都不新增动作或消息，也不改变以上版本兼容承诺。
+
+## 棋牌室四款游戏
+
+### 通用牌号编码
+
+斗地主与德州扑克共用一副 54 张牌的稳定数字契约：牌号 `0..51` 为普通牌，花色 `suit = floor(id / 13)`（`0♠ 1♥ 2♣ 3♦`），点数 `rank = id % 13`（`0='2'`, `1='3'`, …, `8='10'`, `9='J'`, `10='Q'`, `11='K'`, `12='A'`，A 大）；`52` 为小王、`53` 为大王。各游戏自行解释牌力顺序（斗地主里 2 与王按民间规则最大），编码本身不预设；`describeCard` 提供展示名。
+
+### 五子棋（gomoku，2 人，rounds 1/3/5 盘）
+
+```json
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "place-stone", "x": 7, "y": 7 } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "next-board" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "play-again" } }
+```
+
+坐标为 0–14 的整数。每盘黑白轮流执先（第 n 盘由座位 `(n-1) % 2` 执黑），横竖斜连成五子及以上即胜（自由长连规则），满盘判和。落子超时（120 秒）由服务端在靠中心的位置自动落子；盘间展示 8 秒后自动开下一盘，`next-board` 仅房主可提前推进。视图公开整个棋盘、最近落子与连珠坐标，没有私密信息。
+
+### 飞行棋（ludo，2–4 人，rounds 固定 1）
+
+```json
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "roll-dice" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "move-plane", "plane": 0 } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "play-again" } }
+```
+
+骰子只能由服务端掷。`plane` 是**相对本机**的编号（0–3，即「我的第 N 架飞机」），服务端换算为全局编号；视图 `movablePlanes` 同样给出当前行动者的相对编号。规则：掷 6 可起飞并追加一掷；连续第三个 6 本轮作废；己色格（进度 ≡2 (mod 4)）跳跃 +4；18 格飞行 +12 并可连跳；落点撞机全部退回停机坪；终点需整数点，越界反弹。四架全部到家即整场结束并按进度排名。掷骰/移动各 45 秒超时自动托管。视图公开全部飞机位置与骰子，没有私密信息。
+
+### 斗地主（dou-dizhu，3 人，rounds 1/3/5 手）
+
+```json
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "bid", "points": 3 } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "pass" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "play-cards", "cards": [1, 14, 27] } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "next-hand" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "play-again" } }
+```
+
+`pass` 在叫分阶段表示不叫、在出牌阶段表示不要。每人一次叫分机会（1/2/3 或不叫），叫 3 立即坐庄；两轮流局后首叫玩家按 1 分强制坐庄。地主收 3 张底牌并向所有人公开。牌型含单张、对子、三张、三带一/对、顺子（≥5）、连对（≥3 对）、飞机（±单/对翅膀）、四带二（单/对）、炸弹与王炸；炸弹和王炸每次打出使倍数翻倍，春天/反春再翻倍。结算：地主赢则每农民 −base、地主 +2×base，反之亦然；多手累计积分定胜负。
+
+**私密性**：`ownHand` 只包含本人手牌；他人只有 `handCounts` 计数。底牌（`bottom`）在定庄前为 `null`。手牌结果阶段公开 `revealedHands` 与最终牌型。
+
+### 德州扑克（texas-holdem，2–6 人，rounds 1/3/5/8 手）
+
+```json
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "fold" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "check" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "call" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "bet", "amount": 60 } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "raise-to", "amount": 120 } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "next-hand" } }
+{ "type": "game-action", "actionId": "web-uuid", "action": { "type": "play-again" } }
+```
+
+`bet` / `raise-to` 的 `amount` 均为**本街投入总额**（国际惯例）。规则：起始 2000 筹码 vs 10/20 盲注（100 大盲），每 6 手盲注翻倍；最小加注为上一次加注增量，短全下不重开已行动玩家的加注权；未被跟注的差额退还原玩家；边池按贡献分层结算，平分底池的零头筹码从按钮位后顺时针发放；全部全下时逐街发牌（`runout` 阶段）后摊牌。行动超时 60 秒自动托管：能过则过、面对下注弃牌。只剩一人有筹码或到达手数上限时整场结束，按名次与筹码排名。
+
+**私密性**：`ownCards` 只包含本人底牌；座位数据不含任何牌面字段；`revealed` 只在摊牌出现且仅覆盖未弃牌者，弃牌收池不亮牌。
+
+四款游戏的 `next-hand` / `next-board` 都是房主提前推进的快捷动作（等待期会自动推进），`play-again` 仅房主在整场 `finished` 可用并全新开局。
 
 离开与 ping：
 
