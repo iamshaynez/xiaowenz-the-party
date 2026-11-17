@@ -9,6 +9,7 @@ import { Brand } from '../Brand';
 import { playerAvatarOf, playerNameOf } from '../playerDisplay';
 import type { GamePanelProps } from '../gamePanelTypes';
 import { MonsterCarCanvas } from './MonsterCarCanvas';
+import { PartThumbnail } from './PartThumbnail';
 import { Soundscape } from './rendering/Soundscape';
 
 const SLOT_LABELS: Record<MonsterCarSlot, { label: string; emoji: string }> = {
@@ -37,11 +38,13 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
   const [frame, setFrame] = useState<MonsterCarRaceFrame | null>(null);
   const [now, setNow] = useState(Date.now());
   const [webglFailed, setWebglFailed] = useState(false);
+  const [resultsOpen, setResultsOpen] = useState(true);
   const [muted, setMuted] = useState(true);
   const [sound] = useState(() => new Soundscape());
   const shellRef = useRef<HTMLElement>(null);
   const lastCueRef = useRef('');
   const celebratedRaceRef = useRef('');
+  const resultsTimerRef = useRef<number | null>(null);
   const onFrame = useCallback((next: MonsterCarRaceFrame) => setFrame(next), []);
   const onRenderFailure = useCallback(() => setWebglFailed(true), []);
 
@@ -95,6 +98,32 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
     sound.celebrate();
   }, [game.phase, game.plan, sound]);
 
+  useEffect(() => {
+    if (game.phase !== 'finished') return;
+    setResultsOpen(true);
+    if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
+    resultsTimerRef.current = window.setTimeout(() => {
+      resultsTimerRef.current = null;
+      setResultsOpen(false);
+    }, 5_000);
+    return () => {
+      if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
+      resultsTimerRef.current = null;
+    };
+  }, [game.phase, game.plan?.id]);
+
+  const closeResults = () => {
+    if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
+    resultsTimerRef.current = null;
+    setResultsOpen(false);
+  };
+
+  const revealResults = () => {
+    if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
+    resultsTimerRef.current = null;
+    setResultsOpen(true);
+  };
+
   const selectPart = (partId: string) => {
     setDraft((current) => ({ ...current, [activeSlot]: partId }) as MonsterCarBuild);
     void sound.unlock();
@@ -118,12 +147,15 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
     event.preventDefault();
     const parts: readonly string[] = MONSTER_CAR_PART_IDS[activeSlot];
     const current = parts.indexOf(partId);
-    const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
+    const delta = event.key === 'ArrowUp' ? -4 : event.key === 'ArrowDown' ? 4
+      : event.key === 'ArrowRight' ? 1 : -1;
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? parts.length - 1
-      : (current + (forward ? 1 : -1) + parts.length) % parts.length;
+      : (current + delta + parts.length) % parts.length;
     const nextPart = parts[next]!;
     selectPart(nextPart);
-    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+    const target = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next];
+    target?.focus();
+    target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   };
 
   const submit = () => {
@@ -206,7 +238,8 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
                     onClick={() => setActiveSlot(slot)}
                     onKeyDown={(event) => navigateSlots(event, slot)}
                   >
-                    <span>{SLOT_LABELS[slot].emoji}</span><strong>{SLOT_LABELS[slot].label}</strong>
+                    <PartThumbnail slot={slot} partId={draft[slot]} fallbackEmoji={SLOT_LABELS[slot].emoji} enabled={!webglFailed} />
+                    <strong>{SLOT_LABELS[slot].label}</strong>
                   </button>
                 ))}
               </div>
@@ -218,7 +251,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
                   const selected = draft[activeSlot] === partId;
                   return (
                     <button key={partId} type="button" role="radio" aria-checked={selected} tabIndex={selected ? 0 : -1} className={selected ? 'is-selected' : ''} onClick={() => selectPart(partId)} onKeyDown={(event) => navigateParts(event, partId)}>
-                      <span className="mc-part-emoji">{part.emoji}</span>
+                      <PartThumbnail slot={activeSlot} partId={partId} fallbackEmoji={part.emoji} enabled={!webglFailed} />
                       <strong>{part.label}</strong>
                       {selected && <span className="mc-selected-dot"><Check size={12} /></span>}
                     </button>
@@ -274,7 +307,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
 
           {game.phase === 'racing' && !ownCue && <div className="mc-road-caption">看！我的车正在穿过萤火森林</div>}
 
-          {game.phase === 'finished' && (
+          {game.phase === 'finished' && resultsOpen && (
             <section className="mc-results-card" aria-labelledby="mc-results-title">
               <span className="mc-kicker"><Sparkles size={14} />CLOUD PLAYGROUND</span>
               <h1 id="mc-results-title">抵达云朵大操场！</h1>
@@ -289,10 +322,20 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
                   </div>
                 ))}
               </div>
-              {isOwner ? (
-                <button className="mc-again-button" type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}><RotateCcw size={18} />再造一辆，重新出发</button>
-              ) : <p className="mc-waiting-owner">等房主再开一场森林旅行</p>}
+              <div className="mc-results-actions">
+                <button className="mc-continue-button" type="button" onClick={closeResults}>看车车和礼花</button>
+                {isOwner ? (
+                  <button className="mc-again-button" type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}><RotateCcw size={18} />再造一辆，重新出发</button>
+                ) : <p className="mc-waiting-owner">等房主再开一场森林旅行</p>}
+              </div>
             </section>
+          )}
+          {game.phase === 'finished' && !resultsOpen && (
+            <div className="mc-celebration-dock">
+              <span><Sparkles size={16} />欢乐车阵 · 礼花庆典</span>
+              <button type="button" onClick={revealResults}>查看名次</button>
+              {isOwner && <button type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}>再玩一场</button>}
+            </div>
           )}
         </section>
       )}

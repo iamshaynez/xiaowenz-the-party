@@ -25,7 +25,7 @@ export class RenderSurface {
     private readonly now: () => number = Date.now,
   ) {
     const detailed = !window.matchMedia('(max-width: 720px)').matches;
-    this.frameIntervalMs = detailed ? 0 : 1_000 / 30;
+    this.frameIntervalMs = 1_000 / 30;
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     try {
       this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });

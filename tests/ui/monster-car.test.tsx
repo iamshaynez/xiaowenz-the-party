@@ -1,4 +1,4 @@
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MonsterCarBuild, RoomView } from '@party/protocol';
@@ -7,6 +7,13 @@ import type { MonsterCarRaceFrame, MonsterCarRacePlan, MonsterCarView } from '..
 import { GamePanel } from '../../apps/web/src/components/GamePanel';
 
 const renderingControl = vi.hoisted(() => ({ fail: false }));
+const thumbnailControl = vi.hoisted(() => ({ fail: false }));
+
+vi.mock('../../apps/web/src/components/monster-car/PartThumbnail', () => ({
+  PartThumbnail({ slot, partId, fallbackEmoji }: { slot: string; partId: string; fallbackEmoji: string }) {
+    return <span data-testid={`part-thumbnail-${slot}-${partId}`} data-state={thumbnailControl.fail ? 'fallback' : 'loaded'}>{thumbnailControl.fail ? fallbackEmoji : ''}</span>;
+  },
+}));
 
 vi.mock('../../apps/web/src/components/monster-car/MonsterCarCanvas', async () => {
   const { useEffect } = await import('react');
@@ -117,6 +124,8 @@ async function renderPanel(
 
 afterEach(() => {
   renderingControl.fail = false;
+  thumbnailControl.fail = false;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -247,6 +256,8 @@ describe('怪兽汽车：组装、竞演与终局', () => {
     expect(screen.getByRole('radio', { name: /鸭鸭船头/ })).toHaveFocus();
     await user.keyboard('{Home}');
     expect(smile).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('radio', { name: /鲨鱼车头/ })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('旁观者会持续看到公开车辆的最新改装', async () => {
@@ -276,5 +287,44 @@ describe('怪兽汽车：组装、竞演与终局', () => {
     expect(screen.getByLabelText('森林道路进度').querySelectorAll('.mc-route-car')).toHaveLength(participantIds.length);
     expect(document.querySelector('.mc-dom-journey')).toBeInTheDocument();
     expect(screen.queryByTestId('monster-car-canvas')).not.toBeInTheDocument();
+  });
+
+  it('模型货架展示八个真实缩略图，加载失败也保留可选的回退控件', async () => {
+    await renderPanel(buildingGame);
+    const thumbnails = document.querySelectorAll('.mc-part-options [data-testid^="part-thumbnail-"]');
+    expect(thumbnails).toHaveLength(8);
+    expect(Array.from(thumbnails).every((node) => node.getAttribute('data-state') === 'loaded')).toBe(true);
+  });
+
+  it('缩略图失败时仍可通过模型名称选择并提交零件', async () => {
+    thumbnailControl.fail = true;
+    const user = userEvent.setup();
+    const onAction = vi.fn();
+    await renderPanel(buildingGame, 'owner', false, onAction);
+    expect(screen.getByTestId('part-thumbnail-wheels-banana')).toHaveAttribute('data-state', 'fallback');
+    await user.click(screen.getByRole('radio', { name: /香蕉轮/ }));
+    await user.click(screen.getByRole('button', { name: '我的车好了！出发' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'build-car', build: { ...defaultBuild, wheels: 'banana' } });
+  });
+
+  it('终点名次自动收起为庆典条，并可重新展开而不影响车辆庆典', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderPanel(finishedGame);
+    expect(screen.getByRole('region', { name: '抵达云朵大操场！' })).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTime(5_000));
+    expect(screen.queryByRole('region', { name: '抵达云朵大操场！' })).not.toBeInTheDocument();
+    expect(screen.getByText('欢乐车阵 · 礼花庆典')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看名次' }));
+    expect(screen.getByRole('region', { name: '抵达云朵大操场！' })).toBeInTheDocument();
+  });
+
+  it('手动展开名次会取消旧的自动收起计时器', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderPanel(finishedGame);
+    await act(() => vi.advanceTimersByTime(2_000));
+    fireEvent.click(screen.getByRole('button', { name: '看车车和礼花' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看名次' }));
+    await act(() => vi.advanceTimersByTime(10_000));
+    expect(screen.getByRole('region', { name: '抵达云朵大操场！' })).toBeInTheDocument();
   });
 });
