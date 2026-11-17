@@ -144,7 +144,7 @@ afterEach(async () => {
 
 describe('怪兽汽车真实网络对局', () => {
   it('两位客户端装车后同时收到公开赛事计划，竞演不逐帧广播且最终名次一致', async () => {
-    const { owner, second, ownerClient, secondClient, initial } = await twoPlayerParty();
+    const { owner, second, ownerClient, secondClient } = await twoPlayerParty();
 
     ownerClient.send(buildCar('mc-full-owner-01', OWNER_BUILD));
     const readyMessage = await secondClient.waitForMessage((message) =>
@@ -216,7 +216,7 @@ describe('怪兽汽车真实网络对局', () => {
       waitForPhase(secondClient, 'building'),
     ]);
     expect(ownerFresh).toMatchObject({ readyPlayerIds: [], plan: null, standings: [], raceStartsAt: null, raceEndsAt: null });
-    expect(ownerFresh.builds).toEqual(initial.builds);
+    expect(ownerFresh.builds).toEqual({ [owner.playerId]: OWNER_BUILD, [second.playerId]: SECOND_BUILD });
     expect(secondFresh).toEqual(ownerFresh);
   });
 
@@ -337,7 +337,7 @@ describe('怪兽汽车真实网络对局', () => {
 });
 
 describe('怪兽汽车服务重启恢复', () => {
-  it('竞演中重启保留车辆、时间边界和原计划，不因新的随机源重掷赛事', async () => {
+  it('竞演中与再来一局后重启都保留车辆和赛事边界，不因新的随机源重掷', async () => {
     directory = await mkdtemp(join(tmpdir(), 'party-monster-car-'));
     const dataFile = join(directory, 'party.json');
     await app.close();
@@ -386,5 +386,36 @@ describe('怪兽汽车服务重启恢复', () => {
     expect(ownerFinished.plan).toEqual(planBeforeRestart);
     expect(ownerFinished.standings.map((entry) => entry.playerId)).toEqual(planBeforeRestart.finishOrder);
     expect(secondFinished.standings).toEqual(ownerFinished.standings);
+
+    restoredOwner.clear();
+    restoredSecond.clear();
+    restoredOwner.send({ type: 'game-action', actionId: 'mc-restart-again', action: { type: 'play-again' } });
+    const [ownerReplay, secondReplay] = await Promise.all([
+      waitForPhase(restoredOwner, 'building'),
+      waitForPhase(restoredSecond, 'building'),
+    ]);
+    const submittedBuilds = { [owner.playerId]: OWNER_BUILD, [second.playerId]: SECOND_BUILD };
+    expect(ownerReplay).toMatchObject({
+      builds: submittedBuilds,
+      readyPlayerIds: [],
+      raceStartsAt: null,
+      raceEndsAt: null,
+      plan: null,
+      standings: [],
+    });
+    expect(secondReplay).toEqual(ownerReplay);
+
+    await restoredOwner.close();
+    await restoredSecond.close();
+    clients = [];
+    await app.close();
+    now += 5_000;
+    await listen({ dataFile, random: () => 0.17 });
+
+    const replayedOwner = await connect(owner);
+    const replayedSecond = await connect(second);
+    expect(readyGame(replayedOwner)).toEqual(ownerReplay);
+    expect(readyGame(replayedSecond)).toEqual(ownerReplay);
+    expect(readyGame(replayedOwner).builds).toEqual(submittedBuilds);
   });
 });

@@ -13,10 +13,10 @@
 
 ## 分层
 
-- **business**：纯领域规则，快速覆盖所有阶段、平票、越权、非法输入和快照兼容；怪兽汽车重点覆盖五槽各八款/共 40 款、旧 ID 顺序、同种子计划一致性、随机名次与零件无关、任意顺序时间采样，以及 primary、多项 secondary 和回退解析。
-- **network**：启动真实 Fastify 端口，通过 HTTP 和 `ws` 客户端验证鉴权、广播、私密视图、心跳、限流、多标签页、超时和重启；怪兽汽车额外验证四位客户端计划一致、新零件进入公开计划、racing 中途没有逐帧 `room` 快照、重启不重新随机。
-- **ui**：React Testing Library 在 **jsdom** 中从角色、标签、按钮和可见文本验证用户行为；网络适配器可替换，但不 mock 被测组件。另有无 WebGL 的模型/运动纯函数与资源契约测试。该层不证明真实 WebSocket、GPU 帧、缩略图烘焙或音频输出。
-- **e2e**：Playwright 启动生产服务，以多个隔离浏览器上下文完成完整对局、手机刷新恢复和再来一局；怪兽汽车场景在真实 Chromium 中检查 Three.js canvas、八款模型缩略图、结果卡/庆典和两端一致名次。
+- **business**：纯领域规则，快速覆盖所有阶段、平票、越权、非法输入和快照兼容；怪兽汽车重点覆盖五槽各八款/共 40 款、旧 ID 顺序、同种子计划一致性、固定种子 RNG golden、随机名次与零件无关、任意顺序时间采样、primary/多项 secondary/回退，以及再来一局和快照恢复后保留已提交 build。
+- **network**：启动真实 Fastify 端口，通过 HTTP 和 `ws` 客户端验证鉴权、广播、私密视图、心跳、限流、多标签页、超时和重启；怪兽汽车额外验证多位客户端计划一致、新零件进入公开计划、racing 中途没有逐帧 `room` 快照、重启不重新随机，以及重开和再次重启后 build 仍一致。
+- **ui**：React Testing Library 在 **jsdom** 中从角色、标签、按钮和可见文本验证用户行为；网络适配器可替换，但不 mock 被测组件。另有车库草稿、无 WebGL 的模型/运动/ShowPlan/相机纯函数与固定资源契约测试。该层不证明真实 WebSocket、GPU 帧、缩略图烘焙或音频输出。
+- **e2e**：Playwright 启动生产服务，以多个隔离浏览器上下文完成完整对局、手机刷新恢复和再来一局；怪兽汽车场景在真实 Chromium 中检查 Three.js canvas、当前页四张模型缩略图、翻页选件、结果卡/庆典、两端一致名次，以及重开后仍选中已提交零件。只使用稳定阶段和最终/持久状态，不断言瞬时动画状态。
 
 ## 怪兽汽车：纯函数、jsdom 与真实 Chromium 的边界
 
@@ -24,14 +24,20 @@
 
 | 层 | 应证明的内容 | 不能据此声称的内容 |
 | --- | --- | --- |
-| business（Node） | 2–4 人、120 秒组装、3.2 秒倒计时、30 秒竞演与大时间跳跃；合法 build 与越权；协议/目录逐槽八款且保留旧 ID 顺序；同种子同计划；交换新旧零件不改变 finishOrder/pace；任意顺序采样一致；每个声明的响应可成为 primary 或 secondary，多项 secondary 与司机/chassis 回退；版本 1 JSON 快照恢复。 | 不证明浏览器动画、网络广播或 GPU 画面。 |
-| network（真实 Fastify + `ws`） | 两位及四位客户端收到相同公开 builds/plan；新 ID 经真实协议接受并原样进入 racer/cues；非法动作在协议边界失败；幂等与冲突；racing 中途 tick 不发送逐帧 room；真实服务关闭/重启后 plan id、seed、finishOrder 和时间边界不变。 | 不证明 Three.js 能创建 WebGL 上下文、缩略图能烘焙或视觉反应正确。 |
-| ui（jsdom，面板行为） | `monster-car.test.tsx` mock `MonsterCarCanvas` 和 `PartThumbnail`，覆盖 lazy/Suspense、八款选项、装车选择、pending、倒计时、真实采样函数驱动的 HUD、缩略图 emoji 回退、终局、5 秒结果卡自动收起、手动展开取消旧计时器和旁观者。当前 setup 还 mock 了 `matchMedia` 与二维码。 | 缩略图组件是 mock，不能据此声称生成了 data URL 或只有单个烘焙器；jsdom 也没有真实 GPU/WebGL 帧管线。 |
-| ui（jsdom，模型与运动契约） | `monster-car-rendering.test.tsx` 直接构造 40 款真实 `CarAssembly`，检查协议/目录/模型工厂一致、`setPart` 局部换件、所有声明反应在 `REACTION_LIBRARY` 有配置、组合姿态变换有限与 dispose；不创建 WebGLRenderer。 | 不证明像素、材质、相机、GPU 资源释放或真实动画观感。 |
+| business（Node） | 2–4 人、120 秒组装、3.2 秒倒计时、30 秒竞演与大时间跳跃；合法 build 与越权；协议/目录逐槽八款且保留旧 ID 顺序；同种子同计划；固定种子的 events/finishOrder/pace/finishAtMs golden，证明展示代码未改变赛事 RNG；交换新旧零件不改变 finishOrder/pace；任意顺序采样一致；多项 secondary 与司机/chassis 回退；版本 1 JSON 快照恢复；play-again 保留所有参与者已提交 build，重置其余状态并换新种子。 | 不证明浏览器动画、网络广播或 GPU 画面。 |
+| network（真实 Fastify + `ws`） | 两位及四位客户端收到相同公开 builds/plan；新 ID 经真实协议接受并原样进入 racer/cues；非法动作在协议边界失败；幂等与冲突；racing 中途 tick 不发送逐帧 room；真实服务关闭/重启后 plan id、seed、finishOrder 和时间边界不变；再来一局两端保留提交 build，并在再次重启后恢复。 | 不证明 Three.js 能创建 WebGL 上下文、缩略图能烘焙或视觉反应正确；ShowPlan/天气/相机本来就不应出现在网络载荷中。 |
+| ui（jsdom，面板行为） | `monster-car.test.tsx` mock `MonsterCarCanvas` 和 `PartThumbnail`，覆盖 lazy/Suspense、四款一页与翻页、装车选择、键盘跨页、pending、倒计时、真实采样函数驱动的 HUD、缩略图 emoji 回退、“惊喜一下”只改完整本地草稿且出发才提交、终局、5 秒结果卡自动收起、手动展开取消旧计时器和旁观者。当前 setup 还 mock 了 `matchMedia` 与二维码。 | 缩略图组件是 mock，不能据此声称生成了 data URL 或只有单个烘焙器；mock canvas 也不能证明 pointer capture、真实旋转或 GPU 换件动效。 |
+| ui（jsdom，模型与运动契约） | `monster-car-rendering.test.tsx` 直接构造 40 款真实 `CarAssembly`，检查协议/目录/模型工厂一致、`setPart` 局部换件、所有声明反应在 `REACTION_LIBRARY` 有配置、组合姿态变换有限与 dispose；另检查细节实例化和缩略图排队取消，不创建 WebGLRenderer。 | 不证明像素、材质、头像旗纹理、相机、GPU 资源释放或真实动画观感。 |
+| ui（jsdom，ShowPlan 与导演表现） | `monster-car-presentation.test.tsx` 检查 `CarIdentity` 稳定/有界且不依赖 race seed，六个故事与六种天气均可达，ShowPlan 为纯 JSON 且不保留可变输入引用；还覆盖不重叠社交组合/有界姿态、开场/事件/社交/终点相机任意顺序采样与平滑边界、竖屏/减少动效构图，以及 `WeatherField` 固定属性、只写 uniforms、减少动效和幂等 dispose。 | 不创建 GPU 上下文，不证明天气 shader 编译、实际像素、真实相机画面或浏览器事件时序。 |
 | ui（jsdom，赛后庆典契约） | `monster-car-celebration.test.tsx` 检查 `samplePlaygroundMotion` 从终点平滑接入圆环、持续行驶/错相跳跃、任意顺序及极端时间采样；构造真实 `FireworksField` 检查固定种子与容量、shader/加法混合、绝对时间 uniforms、减少动效冻结和幂等 dispose。 | 不创建 GPU 上下文，不证明 shader 编译、烟花实际像素、暮色过渡观感或 RAF 连续播放。 |
-| e2e（真实 Chromium） | `tests/e2e/monster-car.spec.ts` 要求两个隔离 Chromium 上下文中的玩家看到 `data-render-state="running"` 的真实 canvas，等待当前槽位八张缩略图全部 loaded，选择新零件，经历组装、倒计时和竞演，检查手机刷新恢复、相同 standings、结果卡自动收起后手动展开、庆典画布与房主再来一局，并收集浏览器错误。 | 正常 `running` 场景本身不证明 WebGL 不可用时的 DOM 降级；截图也不等于烟花/暮色的自动像素断言。 |
+| ui（jsdom，循环编队与合影相机） | `monster-car-finale.test.tsx` 对 2/3/4 辆车检查既有入场/圆环兼容、全部人数对应队形、20 秒循环、6.4–9.4 秒位置与车轮里程完全停稳、编队/返场边界连续、任意顺序与极端时间采样；并检查 `samplePlaygroundCamera` 在 results/photo、横竖屏下的安全边距及合影期间稳定。 | 不证明某一真实浏览器时刻正在合影，不检查截图像素，也不把纯函数中的 photo 布尔值当作网络阶段。 |
+| e2e（真实 Chromium） | `tests/e2e/monster-car.spec.ts` 要求两个隔离 Chromium 上下文中的玩家看到 `data-render-state="running"` 的真实 canvas，等待当前页四张缩略图全部 loaded，经翻页选择新零件，经历组装并进入倒计时或竞演，检查两端故事标题一致、手机刷新恢复、最终 standings 相同、结果卡自动收起后手动展开、庆典画布、房主再来一局及重开后已提交司机仍选中，并收集浏览器错误。 | 正常 `running` 场景本身不证明 WebGL 不可用时的 DOM 降级；截图不等于天气/烟花/队形的自动像素断言，也不断言某一瞬时倒计时数字、反应、社交、镜头或合影画面。 |
 
-`monster-car.test.tsx` 中的 `data-testid="monster-car-canvas"` 来自 mock `<div>`，其 `onFrame` 直接调用 `sampleMonsterCarFrame`；它能验证 React 数据流，却不能与 E2E 的真实 `<canvas data-render-engine="three.js">` 混为一谈。该文件的缩略图同样是可控 mock；真实 `PartThumbnailBaker` 的 WebP data URL 生成由 Chromium 的 loaded 状态验收。无 WebGL 的 CarAssembly/ReactionLibrary 测试证明几何组装和运动通道稳定，FireworksField 测试证明固定 BufferGeometry/ShaderMaterial 契约；两者都不是 GPU 像素或真实资源释放证明。
+`monster-car.test.tsx` 中的 `data-testid="monster-car-canvas"` 来自 mock `<div>`，其 `onFrame` 直接调用 `sampleMonsterCarFrame`；它能验证 React 数据流，却不能与 E2E 的真实 `<canvas data-render-engine="three.js">` 混为一谈。该文件的缩略图同样是可控 mock；真实 `PartThumbnailBaker` 的 WebP data URL 生成由 Chromium 的当前页 loaded 状态验收。无 WebGL 的 CarAssembly/ReactionLibrary 测试证明几何组装和运动通道稳定，ShowPlan/FinaleMotion 测试证明纯数据与任意时刻采样，WeatherField/FireworksField 测试证明固定 BufferGeometry/ShaderMaterial 契约；它们都不是 GPU 像素或完整真实资源释放证明。
+
+**E2E 只断言可持续、可恢复的状态。** 出发后允许 `.mc-shell` 处于 `countdown|racing`，随后允许 `racing|finished`，避免软件 WebGL 和真实 30 秒计时造成时序脆弱；最终再等待确定的 `finished`、完整 standings、结果卡/庆典条和重开后的选中零件。不要用 E2E 固定等待并断言“握紧方向盘”、某个剩余秒数、途中名次、activeCue、社交文案、天气粒子、队形或相机坐标。320ms 预备、420ms 跟随、900ms 起步、0.45 秒换件和 20 秒合影 cycle 等精确视觉时序应在可控纯函数/组件层验证；浏览器截图只是证据附件，不是瞬时像素断言。
+
+固定种子的赛事 golden 与 ShowPlan 测试承担不同职责：前者锁定 events、finishOrder、pace、finishAtMs，防止新增表现采样改变 RacePlan；后者证明身份/故事/社交/相机确定性和资源池不扩张。网络层再证明没有新增逐帧消息，三层不能互相替代。
 
 业务和网络测试必须注入时钟/随机源，不要为了验证 120 秒或 30 秒规则真实等待。集成 E2E 可以真实走完 30 秒赛事，以覆盖绝对时间采样、动画和刷新恢复；两者目的不同。
 
@@ -73,6 +79,9 @@ pnpm test:e2e:online -- --headed
 - 每个异步测试必须有超时和可靠清理，避免悬挂端口。
 - 不依赖固定房间码、随机题目或真实等待 60/120 秒；通过注入时钟/随机数控制边界。怪兽汽车采样测试直接传入多个绝对赛事毫秒值，不依赖前一帧。
 - 涉及 `RacePlan` 的网络测试检查实际公开载荷及 racing 中途无逐帧 room，不把客户端本地 frame 当成协议消息。
-- 修改 40 款零件目录时同时核对 protocol、catalog 与模型工厂键集合；新增反应必须有 `REACTION_LIBRARY` 配置，多项 secondary 必须验证独立时长与有限组合姿态。
-- 修改赛后庆典时分别覆盖 PlaygroundMotion 任意顺序/长时间采样、FireworksField 固定容量/dispose、结果卡计时器取消；真实缩略图、WebGL 画布与庆典展示再由 Chromium 验收，不能用 jsdom 代替。
+- 修改 40 款零件目录时同时核对 protocol、catalog 与模型工厂键集合；新增反应必须有 `REACTION_LIBRARY` 配置，多项 secondary 必须验证独立时长与有限组合姿态。分页后网络/业务仍验证全部八款，UI/E2E 只挂载并等待当前页四款。
+- 修改展示层时保持 RacePlan golden 不变；为 CarIdentity/ShowPlan/社交/相机补充确定性、纯 JSON、边界与任意顺序采样。天气 360/180、反应/彩纸 420/220、烟花 576/288 的池容量必须固定，更新只写既有 attributes/uniforms 并验证 dispose；不能用截图代替这些资源契约。
+- 修改赛后庆典时分别覆盖 PlaygroundMotion、FinaleMotion 的 2/3/4 人队形与 20 秒循环、6.4–9.4 秒静止合影、PlaygroundCamera 安全构图、FireworksField 固定容量/降强度/dispose、结果卡计时器取消；真实缩略图、WebGL 画布与持久 UI 状态再由 Chromium 验收。
+- 修改 play-again 时，在 business 验证 build 保留与赛事状态重置，在 network 验证多客户端一致及快照重启后仍保留，在 E2E 验证重开后可见选择；不要把本地未提交惊喜草稿当成应恢复状态。
+- E2E 使用稳定阶段、最终名次与持久控件状态，不新增对瞬时倒计时、反应、天气、社交、队形或相机位置的定时断言。
 - 失败截图、trace 和覆盖率文件不提交 Git。

@@ -60,13 +60,13 @@
 | `building` | 创建时为每位参与者生成完整默认车辆，组装截止时间为 `now + 120_000ms`。只有参与者能提交 `build-car`；提交会保存五槽完整 build 并标记 ready，截止前可用新动作继续改装。全员 ready 时立即进入倒计时。 |
 | `countdown` | 由全员最后一次提交时的 `now`，或组装超时时的 `buildingDeadlineAt` 起算，持续 `3_200ms`。此阶段一次性创建 `RacePlan`，设置 `raceStartsAt` 和 `raceEndsAt = raceStartsAt + 30_000ms`，此后不能再改装。未 ready 玩家保留当前车辆并自动出发。 |
 | `racing` | 服务端时间到达 `raceStartsAt` 后进入，持续 30 秒。服务端不接收车辆位置、速度或名次。 |
-| `finished` | 到达 `raceEndsAt` 后由服务端从计划的 `finishOrder` 生成公开 `standings`，包含 place、finishAtMs 和 highlight。此后权威阶段保持 `finished`；云朵操场、烟花和结果卡收起都只是浏览器展示。只有房主能 `play-again`，并以新种子回到 `building`。 |
+| `finished` | 到达 `raceEndsAt` 后由服务端从计划的 `finishOrder` 生成公开 `standings`，包含 place、finishAtMs 和 highlight。此后权威阶段保持 `finished`；云朵操场、循环编队合影、烟花和结果卡收起都只是浏览器展示。只有房主能 `play-again`；新局保留每名参与者最后提交的 build，重置 ready/plan/时间边界/standings，并以新种子回到 `building`。 |
 
 `advanceTime` 只根据注入的 `now` 判断边界；一次跨过多个边界的大时间跳跃可以直接完成比赛，不要求逐帧调用，也不依赖房主浏览器在线。
 
 ### `RacePlan` 与任意时刻采样
 
-`packages/games/src/monster-car/race.ts` 用开局保存的 32 位种子和独立伪随机数生成器创建计划。计划只包含字符串、数字、数组和普通对象，可 `structuredClone`、JSON 序列化并直接放进房间视图：
+`packages/games/src/monster-car/race.ts` 用开局保存的 32 位种子和独立伪随机数生成器创建计划。计划只包含字符串、数字、数组和普通对象，可 `structuredClone`、JSON 序列化并直接放进房间视图。展示层不得向这条 RNG 流追加采样；固定种子的 events、finishOrder、pace 与 finishAtMs 由 golden 业务测试守护。
 
 - `events` 为六个赛道事件，进度固定为 0.15、0.30、0.46、0.62、0.78、0.88；环境从水坑、木头、阵风、山坡中选择，相邻事件不重复，另有 0–2 的外观 variant。
 - `finishOrder` 是玩家 ID 的随机洗牌。洗牌和配速生成不读取零件定义，因此同种子下交换或修改 builds 不会改变完赛顺序或 pace；零件只影响模型、反应提示和高光。
@@ -87,27 +87,55 @@
 
 反应在创建计划时解析并序列化进 cues，渲染器只消费结果。`ReactionLibrary` 把持久化 reaction ID 映射为可组合运动通道：primary 驱动整车姿态和主零件，secondary 按各自 `durationMs` 独立计算进度并叠加到对应零件/司机；反应粒子只选择 primary 配置的类型。未知反应在表现层按刺激回退。所有反应均不改变 pace、finishAtMs 或 finishOrder，动画与粒子不是数值加成系统。完整目录、优先级和资产实现见 `docs/CAR_ASSETS.md`。
 
+`ReactionPerformance` 只在浏览器为既有 cue 加一层绝对时间包装：正常模式从 `startAtMs - 320ms` 开始预备，在 primary 与最长 secondary 结束后保留至多 420ms 跟随；减少动效时取消这两段扩展。预备让悬挂下沉、司机回望，跟随只叠加轻微回摆。包装器的 localProgress 供既有运动函数截断，不修改 cue，也不延长 HUD/音效的权威反应窗口。
+
+### 纯本地 `ShowPlan`：身份、故事、社交与相机
+
+`createMonsterCarShowPlan(plan, players)` 是浏览器展示层的纯函数。它只读取公开 RacePlan 与 `room.players` 的 id/avatar，返回可 JSON 序列化且与输入脱离引用的 `{ identities, avatars, story, socialMoments, finaleSeed }`；不保留或修改输入对象，不写入游戏状态、网络消息或房间快照。所有随机选择使用 `presentation/deterministic.ts` 中按用途隔离的哈希/局部流，与 `createMonsterCarRacePlan` 的 RNG 完全分离。
+
+#### 每车身份与旗帜
+
+`CarIdentity` 以 playerId、公开 avatar 和参与者索引稳定生成，不依赖赛事 seed。baseColor、accentColor、dots/stripes/stars/checker 花纹、车身长宽高的轻微缩放和悬挂相位均按具名 purpose 派生；旗帜编号为 `participantIndex % 99 + 1`。`CarAssembly` 将身份比例应用到车身与轮距，用相位错开悬挂起伏，并增加围巾、车身花纹和 CanvasTexture 头像旗；本人车辆另有本地光环。旗帜 2D canvas 不可用时会退回纯色材质，纹理由模型 dispose 一并释放。身份改变的是外观，不是碰撞、速度或名次。
+
+#### 六个故事与固定天气池
+
+ShowPlan 根据 plan id/seed 选择六个故事之一：**萤火虫森林、雨滴交响曲、花瓣野餐会、鲜花巡游、橡果沙沙谷、灯笼星光夜**，分别绑定 `fireflies`、`rain`、`petals`、`flowers`、`acorns`、`lanterns`。每个故事还携带日间/暮色三色天空、雾色、背景色、阳光色和装饰 variant；`CourseVisual` 消费这些普通数据，`WeatherField` 用单个固定容量 `THREE.Points` 和 shader 表现天气。天气更新只写时间、焦点与减少动效 uniforms，不读取赛事 RNG。
+
+#### 不重叠的社交时刻与导演相机
+
+`createSocialMoments` 将 racers 确定性轮转后分成互不重复的两人组合：2/3 辆车安排 1 段，4 辆车安排 2 段。通用挥手之外，鸭子组合、雨伞、泡泡浴缸、幽灵、狮子和香蕉轮可触发专属互动；actor、target、开始时间、2.1–2.5 秒时长和文案都是 ShowPlan 数据。`sampleSocialMoment` 按绝对时间选择唯一活动区间，`sampleSocialPose` 用有界包络计算欢呼、对视与倾斜，不积累上一帧状态。
+
+`sampleRaceCamera` 同样只依赖 ShowPlan、绝对时间、当前共享赛事帧与 aspect：开场镜头平滑接入车队全景，事件期间聚焦反应车辆，社交期间框住 actor/target，27 秒或头车接近终点时转向终点；各镜头按边界 cross-fade，事件镜头优先于社交。竖屏与减少动效模式扩大构图并调整距离。相机采样不修改 ShowPlan/frame，丢帧、倒序采样或刷新不会累计漂移，也不会发送镜头消息。
+
 ### Three.js 加载、生命周期与 DOM 降级
 
 `GamePanel` 通过 `React.lazy(() => import(...))` 仅在 `room.game.id === 'monster-car'` 时加载怪兽汽车面板；Three.js 和渲染实现随这个异步面板 chunk 加载，其他两款游戏不直接初始化它，加载期间显示车库 Suspense 文案。
 
-所有车辆、缩略图、车库、赛道、树木、河流、事件、终点、粒子与烟花都由 Three.js 几何体、实例化网格、点缓冲和内联 shader 程序化生成；音效由 Web Audio oscillator 合成。当前没有 GLTF/贴图/HDR/音频文件请求，也不需要外部资产 CDN。缩略图是本地生成的 WebP data URL，不是远程图片。
+所有车辆、头像旗、缩略图、车库、赛道、树木、河流、事件、终点、天气、反应粒子与烟花都由 Three.js 几何体、实例化网格、点缓冲、2D canvas 纹理和内联 shader 程序化生成；音效由 Web Audio oscillator 合成。当前没有 GLTF/外部贴图/HDR/音频文件请求，也不需要外部资产 CDN。缩略图是本地生成的 WebP data URL，不是远程图片。
 
-`MonsterCarCanvas` 挂载时创建一个 `MonsterCarWorld` 和一个 `RenderSurface`，卸载时取消动画帧、断开 `ResizeObserver`、移除 context-lost 监听，并释放车辆/赛道几何体、材质、阴影、固定粒子池、renderer 和 canvas；`Soundscape` 同时关闭 AudioContext。RenderSurface 在桌面与移动端都限制到约 30fps；赛后庆典在减少动效偏好下降至约 5fps。移动端另降低模型/场景细节、pixel ratio 并关闭阴影，隐藏标签页跳过绘制。减少动效偏好会削弱装饰运动并冻结烟花时间，但不改变权威时间与名次。
+`MonsterCarCanvas` 挂载时创建一个 `MonsterCarWorld` 和一个 `RenderSurface`，卸载时取消动画帧、断开 `ResizeObserver`、移除 context-lost 监听，并释放车辆/赛道几何体、材质、头像纹理、阴影、固定粒子池、renderer 和 canvas；`Soundscape` 同时关闭 AudioContext。RenderSurface 在桌面与移动端都限制到约 30fps；赛后庆典在减少动效偏好下降至约 5fps。移动端另降低模型/场景细节、pixel ratio 并关闭阴影，隐藏标签页跳过绘制。
+
+资源有明确上限：每个世界的 `ParticleField` 固定 420（详细）/220（紧凑）实例，`WeatherField` 固定 360/180 点；首次进入赛后只建一个 `FireworksField`，固定 576/288 点。天气和烟花更新只改 uniforms，反应/彩纸每帧在既有实例池内重建，均不随运行时长扩张。故事装饰、森林与花草使用实例化网格；减少动效偏好会削弱装饰运动、冻结天气/烟花时间并降低强度，但不改变权威时间与名次。
 
 WebGLRenderer 创建失败，或运行中触发 `webglcontextlost` 时，面板切换到 DOM 汽车预览/森林场景。装车控件、阶段文本和服务端结算仍可使用，但 DOM 视图不是完整 Three.js 动画的等效替代，也不负责推进比赛。真实 WebGL 路径只能由浏览器 E2E 证明，不能由 jsdom 中 canvas 是否存在来证明。
 
 ### 共享模型、局部换件与缩略图
 
-`rendering/models/` 按槽位维护与协议 ID 精确对应的工厂注册表，`createPartModel(slot, partId)` 同时服务整车 `CarAssembly` 和 `PartThumbnailBaker`，避免主场景和货架各维护一套外观。车库中 draft 改变时，`MonsterCarWorld` 对变化槽位调用 `CarAssembly.setPart`：移除并 dispose 旧槽位模型，保留整车根节点、底盘和未变化零件；相同槽位/零件不重复构建，只有进入新车库或车身 paint 改变等情形才重建整车。
+`rendering/models/` 按槽位维护与协议 ID 精确对应的工厂注册表，`createPartModel(slot, partId)` 同时服务整车 `CarAssembly` 和 `PartThumbnailBaker`，避免主场景和货架各维护一套外观。车库中 draft 改变时，`MonsterCarWorld` 对变化槽位调用 `CarAssembly.setPart`：移除并 dispose 旧槽位模型，保留整车根节点、身份、底盘和未变化零件；相同槽位/零件不重复构建，只有进入新车库或身份/车身 paint 改变等情形才重建整车。新零件安装后有 0.45 秒本地弹跳/放大，减少动效时直接清除换件动画。
+
+车库预览的横向 pointer drag 通过 pointer capture 调整本地 `garageYaw`，左右方向键提供同等旋转；拖出、取消和丢失 capture 都结束手势，不发送动作。每槽货架只挂载当前页四款，前后翻页与零件方向键会自动跨页并恢复焦点。“惊喜一下”调用本地 `surpriseCarBuild`，为每槽从七个不同备选 ID 中选一项；默认随机源是浏览器 `Math.random`，不是服务端 RNG。它只更新 draft，必须再点击出发才通过既有 `build-car` 提交，旁观者没有这些编辑控件。竞演最初 900ms 的 sine 前冲同样只是视觉偏移，不写回 progress。
 
 全局只有一个 `partThumbnailBaker`。它按需创建一个 240×180 的临时 WebGLRenderer，按队列每次烘焙一个共享工厂模型，将结果以 `slot:partId` 为键缓存为静态 WebP data URL，并合并同键 pending 请求。React 选项只渲染缓存的 `<img>`、加载占位或 emoji 回退，不持有自己的 canvas/WebGL 上下文。每个任务释放临时模型和地面，空闲 2 秒后释放 renderer；缓存的 data URL 保留以便后续槽位切换复用。缩略图失败或 WebGL 降级不会禁用零件名称、选择和提交。
 
 ### `finished` 后的本地持续庆典
 
-服务端到 `raceEndsAt` 后仍只进入 `finished`，浏览器用 `max(0, rawElapsed - plan.durationMs)` 得到赛后时间。`samplePlaygroundMotion(plan, celebrationMs)` 从最终 `RacePlan` 帧直接计算姿态，不保存模拟游标：前 1.5 秒从最终路面位置平滑插入环形车道，之后按绝对时间持续绕行，并用 plan seed 为各车生成错相周期跳跃。同一 plan、同一赛后时刻以任意顺序采样结果一致，长时间运行也不靠逐帧积分。
+服务端到 `raceEndsAt` 后仍只进入 `finished`，浏览器用 `max(0, rawElapsed - plan.durationMs)` 得到赛后时间。`sampleFinaleMotion(plan, celebrationMs)` 在既有 `samplePlaygroundMotion` 之上按绝对时间编排，不保存模拟游标：最初 1.5 秒仍从最终路面平滑进入环形车道；此后持续绕行，同时把停稳合影占用的里程从车轮动画中扣除。
 
-庆典创建一次 `FireworksField`，以固定种子的 TypedArray 属性和单个 `THREE.Points`/ShaderMaterial 在 GPU 上循环计算烟花；更新只修改时间/减少动效 uniforms，不扩张或替换粒子池。`CourseVisual` 同时将天空三段颜色在两秒内平滑过渡到暮色。赛后本地 HUD 仍采样被截断到 30 秒的最终赛事帧，standings 不变；车辆、阴影、司机庆祝、彩纸和烟花均不发送网络消息。
+赛后每 20 秒重复一次完整编舞：0–5 秒绕行，5.0–6.4 秒平滑驶入队形，6.4–9.4 秒所有车辆完全静止合影，9.4–11.4 秒平滑返场，其余时间继续绕行。队形按当前 racers 数量选择并随 cycle 轮换：2 辆为并排/面对面，3 辆为三角/弧线，4 辆为横列/菱形/2×2。合影期间位置、朝向、跳跃和 travelDistance 均保持不变；循环边界仍由同一纯函数直接计算，任意顺序与长时间采样一致。
+
+`samplePlaygroundCamera` 根据去掉跳跃高度后的整车边界和 aspect 构图，用旋转不变的包围半径容纳圆环运动。结果卡模式在桌面右侧、竖屏底部预留空间；收起结果卡后使用更集中的 photo 模式，并在真实合影窗进一步收紧且保持相机稳定。空车队和非法 aspect 有有限回退。合影时烟花 intensity 降为 0.55，但不改变赛后时间或 standings。
+
+首次进入赛后庆典时创建一次 `FireworksField`，以固定种子的 TypedArray 属性和单个 `THREE.Points`/ShaderMaterial 在 GPU 上循环计算烟花；更新只修改时间/减少动效/强度 uniforms，不扩张或替换粒子池。`CourseVisual` 将当前故事的日间三色在两秒内平滑过渡到对应暮色。赛后本地 HUD 仍采样被截断到 30 秒的最终赛事帧；车辆、阴影、司机庆祝、彩纸、天气和烟花均不发送网络消息。
 
 结果卡在进入每一场 `finished` 时展开，5 秒后自动收起为庆典条。点击“看车车和礼花”会提前收起，点击“查看名次”会重新展开；两种手动操作都清除旧的自动收起计时器，因此重新展开不会被旧计时器再次关闭。阶段/赛事切换和卸载会清理计时器，房主在卡片或庆典条上发起的仍是既有 `play-again`。
 
@@ -130,7 +158,9 @@ WebGLRenderer 创建失败，或运行中触发 `webglcontextlost` 时，面板�
 - 正常关闭时等待最后快照落盘。
 - 启动时跳过已过期房间，并校验游戏版本。
 
-房间快照外壳当前为 `schemaVersion: 1`，怪兽汽车游戏快照也为 `version: 1`。其 state 保存参与者、种子、builds、ready 状态、组装/开赛/完赛时间边界、完整 plan 与 standings；竞演中重启后仍使用同一 plan id、seed、finishOrder 和绝对时间，不根据新随机源重掷。五槽扩展只追加了 20 个合法 ID，原有 20 个 ID、build/plan 字段与 `secondary` 数组形状未变，因而旧版本 1 快照仍可加载，无需版本提升或迁移；恢复含新 ID 的快照则需要包含这些 ID 的当前实现。游戏版本不匹配时以 `SNAPSHOT_INCOMPATIBLE` 拒绝恢复。客户端重连后拿到同一计划，再按当前绝对时间采样即可；赛后操场时间同样由既有时间边界推导，不增加快照字段。
+房间快照外壳当前为 `schemaVersion: 1`，怪兽汽车游戏快照也为 `version: 1`。其 state 保存参与者、种子、builds、ready 状态、组装/开赛/完赛时间边界、完整 plan 与 standings；竞演中重启后仍使用同一 plan id、seed、finishOrder 和绝对时间，不根据新随机源重掷。五槽扩展只追加了 20 个合法 ID，原有 20 个 ID、build/plan 字段与 `secondary` 数组形状未变，因而旧版本 1 快照仍可加载，无需版本提升或迁移；恢复含新 ID 的快照则需要包含这些 ID 的当前实现。游戏版本不匹配时以 `SNAPSHOT_INCOMPATIBLE` 拒绝恢复。
+
+客户端重连后拿到同一计划，再按当前绝对时间采样即可；赛后操场与循环合影时间同样由既有时间边界推导。`CarIdentity`、ShowPlan、故事/天气、社交、相机和合影 cycle 都可从公开 plan/玩家资料重建，不增加快照字段。已结束版本 1 快照恢复后再来一局，仍保留快照中每名参与者最后提交的 build；未提交的本地“惊喜”草稿不是权威状态，不会跨重开保留。
 
 快照含恢复令牌，等同于敏感数据。生产环境必须保护持久卷，定期备份是否必要由产品决定；房间默认闲置两小时后过期。
 

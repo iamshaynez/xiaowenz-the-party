@@ -17,6 +17,7 @@ const VERTEX_SHADER = /* glsl */ `
   uniform float reducedMotion;
   uniform float period;
   uniform float gravity;
+  uniform float intensity;
 
   attribute vec3 aVelocity;
   attribute vec3 aColor;
@@ -38,7 +39,7 @@ const VERTEX_SHADER = /* glsl */ `
     sparkPosition.y -= 0.5 * gravity * age * age;
 
     vColor = aColor;
-    vAlpha = alive * fadeIn * fadeOut * mix(0.9, 0.42, reducedMotion);
+    vAlpha = alive * fadeIn * fadeOut * mix(0.9, 0.42, reducedMotion) * intensity;
 
     vec4 viewPosition = modelViewMatrix * vec4(sparkPosition, 1.0);
     gl_Position = projectionMatrix * viewPosition;
@@ -78,7 +79,7 @@ export class FireworksField {
   private readonly period: number;
   private disposed = false;
 
-  constructor(detailed: boolean) {
+  constructor(detailed: boolean, seed = SEED) {
     const volleyCount = detailed ? 8 : 6;
     const sparksPerVolley = detailed ? 72 : 48;
     const capacity = volleyCount * sparksPerVolley;
@@ -90,7 +91,7 @@ export class FireworksField {
     const starts = new Float32Array(capacity);
     const lifetimes = new Float32Array(capacity);
     const sizes = new Float32Array(capacity);
-    const random = randomFrom(SEED);
+    const random = randomFrom(seed);
     const finish = sampleCourse(1);
     const centerX = COURSE_LENGTH + 5;
 
@@ -147,6 +148,7 @@ export class FireworksField {
         reducedMotion: { value: 0 },
         period: { value: this.period },
         gravity: { value: 2.65 },
+        intensity: { value: 1 },
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
@@ -162,13 +164,14 @@ export class FireworksField {
     this.points.renderOrder = 3;
   }
 
-  update(celebrationSeconds: number, reducedMotion = false) {
+  update(celebrationSeconds: number, reducedMotion = false, intensity = 1) {
     if (this.disposed) return;
     const time = Number.isFinite(celebrationSeconds) ? Math.max(0, celebrationSeconds) : 0;
     const uniforms = this.points.material.uniforms;
     // Reduced motion is a static, dimmed initial burst: no animation or flashing.
     uniforms.time!.value = reducedMotion ? REDUCED_MOTION_TIME : time % this.period;
     uniforms.reducedMotion!.value = reducedMotion ? 1 : 0;
+    uniforms.intensity!.value = Math.max(0.2, Math.min(1.2, Number.isFinite(intensity) ? intensity : 1));
   }
 
   dispose() {

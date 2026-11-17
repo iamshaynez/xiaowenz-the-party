@@ -35,7 +35,7 @@ async function expectRestoredJourney(page: Page) {
 
 async function expectModelOptionsReady(page: Page) {
   const options = page.locator('.mc-part-options [data-testid^="part-thumbnail-"]');
-  await expect(options).toHaveCount(8, { timeout: 15_000 });
+  await expect(options).toHaveCount(4, { timeout: 15_000 });
   await expect.poll(async () => options.evaluateAll((nodes) => (
     nodes.every((node) => node.getAttribute('data-state') === 'loaded')
   )), { timeout: 20_000 }).toBe(true);
@@ -84,28 +84,32 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
     await owner.page.screenshot({ path: 'artifacts/monster-car/garage-desktop.png', fullPage: true });
     await second.page.screenshot({ path: 'artifacts/monster-car/garage-mobile.png', fullPage: true });
 
+    await owner.page.getByRole('button', { name: '下一页零件' }).click();
     await owner.page.getByRole('radio', { name: /香蕉轮/ }).click();
     await owner.page.getByRole('tab', { name: '车头' }).click();
+    await owner.page.getByRole('button', { name: '下一页零件' }).click();
     await expectModelOptionsReady(owner.page);
     await owner.page.getByRole('radio', { name: /鲨鱼车头/ }).click();
     await owner.page.getByRole('tab', { name: '车顶' }).click();
+    await owner.page.getByRole('button', { name: '下一页零件' }).click();
     await expectModelOptionsReady(owner.page);
     await owner.page.getByRole('radio', { name: /鲸鱼车顶/ }).click();
     await second.page.getByRole('tab', { name: '司机' }).click();
+    await second.page.getByRole('button', { name: '下一页零件' }).click();
     await second.page.getByRole('radio', { name: /机器人司机/ }).click();
     await owner.page.screenshot({ path: 'artifacts/monster-car/custom-car-desktop.png', fullPage: true });
 
     await second.page.getByRole('button', { name: /我的车好了/ }).click();
     await owner.page.getByRole('button', { name: /我的车好了/ }).click();
-    await expect(owner.page.getByText('握紧方向盘')).toBeVisible();
+    await expect(owner.page.locator('.mc-shell')).toHaveAttribute('class', /mc-phase-(countdown|racing)/, { timeout: 15_000 });
     await expectRealCanvas(owner.page);
     await owner.page.screenshot({ path: 'artifacts/monster-car/departure-desktop.png', fullPage: true });
-    await expectRealCanvas(second.page);
-    await expect(second.page.locator('.mc-shell')).toHaveAttribute('class', /mc-phase-(countdown|racing)/);
+    await expectRestoredJourney(second.page);
 
     for (const page of [owner.page, second.page]) {
-      await expect(page.getByText(/森林旅行 ·/)).toBeVisible({ timeout: 12_000 });
+      await expect(page.locator('.mc-shell')).toHaveAttribute('class', /mc-phase-(racing|finished)/, { timeout: 45_000 });
     }
+    expect(await owner.page.locator('.mc-event-name strong').innerText()).toBe(await second.page.locator('.mc-event-name strong').innerText());
     await expect(owner.page.locator('.mc-route-car')).toHaveCount(2);
     await owner.page.screenshot({ path: 'artifacts/monster-car/race-desktop.png', fullPage: true });
     await second.page.screenshot({ path: 'artifacts/monster-car/race-mobile.png', fullPage: true });
@@ -133,6 +137,8 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
     await owner.page.getByRole('button', { name: '再玩一场' }).click();
     await expect(second.page.getByRole('heading', { name: /造一辆奇怪的车/ })).toBeVisible();
     await expect(second.page.getByRole('button', { name: /我的车好了/ })).toBeVisible();
+    await second.page.getByRole('tab', { name: '司机' }).click();
+    await expect(second.page.getByRole('radio', { name: /机器人司机/ })).toHaveAttribute('aria-checked', 'true');
 
     expect(errors).toEqual([]);
     await testInfo.attach('room-code', { body: code, contentType: 'text/plain' });
