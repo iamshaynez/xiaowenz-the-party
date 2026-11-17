@@ -43,7 +43,8 @@ async function openResults(page: Page) {
 }
 
 test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢复并获得一致名次', async ({ browser }, testInfo) => {
-  test.setTimeout(180_000);
+  // 双独立软件 WebGL 浏览器、真实 30 秒赛事与桌面/手机截图会显著慢于普通 DOM E2E。
+  test.setTimeout(300_000);
   const owner = await newPlayer(browser, false);
   const second = await newPlayer(browser, true);
   const errors: string[] = [];
