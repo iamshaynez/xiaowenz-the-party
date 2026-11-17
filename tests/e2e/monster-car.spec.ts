@@ -26,6 +26,22 @@ async function expectRealCanvas(page: Page) {
   await expect(canvas).toHaveAttribute('data-render-state', 'running', { timeout: 15_000 });
 }
 
+async function expectModelOptionsReady(page: Page) {
+  const options = page.locator('.mc-part-options [data-testid^="part-thumbnail-"]');
+  await expect(options).toHaveCount(8, { timeout: 15_000 });
+  await expect.poll(async () => options.evaluateAll((nodes) => (
+    nodes.every((node) => node.getAttribute('data-state') === 'loaded')
+  )), { timeout: 20_000 }).toBe(true);
+}
+
+async function openResults(page: Page) {
+  await expect(page.locator('.mc-phase-finished')).toBeVisible({ timeout: 40_000 });
+  const showResults = page.getByRole('button', { name: '查看名次' });
+  await expect(showResults).toBeVisible({ timeout: 15_000 });
+  await showResults.click();
+  await expect(page.getByRole('heading', { name: '抵达云朵大操场！' })).toBeVisible();
+}
+
 test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢复并获得一致名次', async ({ browser }, testInfo) => {
   test.setTimeout(180_000);
   const owner = await newPlayer(browser, false);
@@ -56,16 +72,19 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
       await expect(page.getByRole('heading', { name: /造一辆奇怪的车/ })).toBeVisible();
       await expectRealCanvas(page);
     }
+    await expectModelOptionsReady(owner.page);
     await owner.page.screenshot({ path: 'artifacts/monster-car/garage-desktop.png', fullPage: true });
     await second.page.screenshot({ path: 'artifacts/monster-car/garage-mobile.png', fullPage: true });
 
-    await owner.page.getByRole('radio', { name: /弹簧轮/ }).click();
+    await owner.page.getByRole('radio', { name: /香蕉轮/ }).click();
     await owner.page.getByRole('tab', { name: '车头' }).click();
-    await owner.page.getByRole('radio', { name: /鸭鸭船头/ }).click();
+    await expectModelOptionsReady(owner.page);
+    await owner.page.getByRole('radio', { name: /鲨鱼车头/ }).click();
     await owner.page.getByRole('tab', { name: '车顶' }).click();
-    await owner.page.getByRole('radio', { name: /雨伞车顶/ }).click();
+    await expectModelOptionsReady(owner.page);
+    await owner.page.getByRole('radio', { name: /鲸鱼车顶/ }).click();
     await second.page.getByRole('tab', { name: '司机' }).click();
-    await second.page.getByRole('radio', { name: /小鸭司机/ }).click();
+    await second.page.getByRole('radio', { name: /机器人司机/ }).click();
     await owner.page.screenshot({ path: 'artifacts/monster-car/custom-car-desktop.png', fullPage: true });
 
     await second.page.getByRole('button', { name: /我的车好了/ }).click();
@@ -92,14 +111,21 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
     await second.page.screenshot({ path: 'artifacts/monster-car/race-restored-mobile.png', fullPage: true });
 
     for (const page of [owner.page, second.page]) {
-      await expect(page.getByRole('heading', { name: '抵达云朵大操场！' })).toBeVisible({ timeout: 40_000 });
+      await openResults(page);
       await expect(page.locator('.mc-standings > div')).toHaveCount(2);
     }
     expect(await owner.page.locator('.mc-standings').innerText()).toBe(await second.page.locator('.mc-standings').innerText());
     await owner.page.screenshot({ path: 'artifacts/monster-car/results-desktop.png', fullPage: true });
     await second.page.screenshot({ path: 'artifacts/monster-car/results-mobile.png', fullPage: true });
-    await expect(second.page.getByRole('button', { name: /再造一辆/ })).toHaveCount(0);
-    await owner.page.getByRole('button', { name: /再造一辆/ }).click();
+    for (const page of [owner.page, second.page]) {
+      await page.getByRole('button', { name: '看车车和礼花' }).click();
+      await expect(page.locator('.mc-celebration-dock')).toBeVisible();
+      await expectRealCanvas(page);
+    }
+    await owner.page.screenshot({ path: 'artifacts/monster-car/celebration-desktop.png', fullPage: true });
+    await second.page.screenshot({ path: 'artifacts/monster-car/celebration-mobile.png', fullPage: true });
+    await expect(second.page.getByRole('button', { name: '再玩一场' })).toHaveCount(0);
+    await owner.page.getByRole('button', { name: '再玩一场' }).click();
     await expect(second.page.getByRole('heading', { name: /造一辆奇怪的车/ })).toBeVisible();
     await expect(second.page.getByRole('button', { name: /我的车好了/ })).toBeVisible();
 

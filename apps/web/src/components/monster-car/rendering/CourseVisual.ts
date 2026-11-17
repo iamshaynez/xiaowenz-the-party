@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import type { MonsterCarRacePlan } from '@party/games';
 import { COURSE_LENGTH, sampleCourse } from './courseMath';
 
+const SKY_DAY = ['#72b9c6', '#f7cfad', '#8ca87c'].map((color) => new THREE.Color(color));
+const SKY_TWILIGHT = ['#4c557c', '#a77f91', '#65776a'].map((color) => new THREE.Color(color));
+
 function randomFrom(seed: number) {
   let value = seed >>> 0;
   return () => {
@@ -48,6 +51,7 @@ function ribbon(width: number, color: string, yOffset: number, segments = 240) {
 export class CourseVisual {
   readonly group = new THREE.Group();
   private readonly waterMaterials: THREE.ShaderMaterial[] = [];
+  private skyMaterial: THREE.ShaderMaterial | null = null;
   private readonly clouds: THREE.Group[] = [];
   private readonly cloudOrigins: number[] = [];
   private readonly winds: THREE.Group[] = [];
@@ -79,6 +83,7 @@ export class CourseVisual {
       fragmentShader: 'varying vec3 vWorld; uniform vec3 topColor; uniform vec3 middleColor; uniform vec3 bottomColor; void main(){ float h=normalize(vWorld).y; vec3 c=mix(bottomColor,middleColor,smoothstep(-0.12,0.12,h)); c=mix(c,topColor,smoothstep(0.05,0.65,h)); gl_FragColor=vec4(c,1.0); }',
     });
     const sky = new THREE.Mesh(new THREE.SphereGeometry(240, 32, 18), material);
+    this.skyMaterial = material;
     sky.position.set(COURSE_LENGTH / 2, 0, 0);
     sky.castShadow = false;
     sky.receiveShadow = false;
@@ -340,6 +345,42 @@ export class CourseVisual {
     plaza.position.set(COURSE_LENGTH + 5, point.y - 0.1, point.z);
     this.group.add(plaza);
 
+    const loopTrack = mesh(new THREE.RingGeometry(4.9, 6.9, 72), standard('#e4c895'));
+    loopTrack.rotation.x = -Math.PI / 2;
+    loopTrack.position.set(COURSE_LENGTH + 5, point.y + 0.1, point.z);
+    loopTrack.castShadow = false;
+    this.group.add(loopTrack);
+    for (const radius of [5.35, 6.45]) {
+      const lane = mesh(new THREE.TorusGeometry(radius, 0.025, 5, 72), new THREE.MeshBasicMaterial({ color: '#fff0c4' }));
+      lane.rotation.x = Math.PI / 2;
+      lane.position.set(COURSE_LENGTH + 5, point.y + 0.125, point.z);
+      lane.castShadow = false;
+      this.group.add(lane);
+    }
+    const padColors = ['#f28b78', '#8dc9b2', '#b4a0dc', '#f1cc69'];
+    for (let index = 0; index < 4; index += 1) {
+      const angle = index * Math.PI / 2 + Math.PI / 4;
+      const pad = mesh(new THREE.BoxGeometry(1.05, 0.1, 1.35), standard(padColors[index]!));
+      pad.position.set(COURSE_LENGTH + 5 + Math.cos(angle) * 5.9, point.y + 0.16, point.z + Math.sin(angle) * 5.9);
+      pad.rotation.y = -angle;
+      this.group.add(pad);
+    }
+    for (const side of [-1, 1]) {
+      const balloons = new THREE.Group();
+      balloons.position.set(COURSE_LENGTH + 5 + side * 7.1, point.y, point.z + 2.8);
+      for (let index = 0; index < 5; index += 1) {
+        const color = padColors[index % padColors.length]!;
+        const balloon = mesh(new THREE.SphereGeometry(0.38, 14, 10), standard(color));
+        balloon.scale.y = 1.25;
+        balloon.position.set((index - 2) * 0.32, 3.5 + (index % 2) * 0.55, (index % 3 - 1) * 0.28);
+        balloons.add(balloon);
+        const string = mesh(new THREE.CylinderGeometry(0.012, 0.012, balloon.position.y - 0.25, 5), standard('#eee2c3'));
+        string.position.set(balloon.position.x, (balloon.position.y - 0.25) / 2, balloon.position.z);
+        balloons.add(string);
+      }
+      this.group.add(balloons);
+    }
+
     this.ferrisWheel.position.set(COURSE_LENGTH + 7, point.y + 5.2, point.z - 10);
     const wheel = mesh(new THREE.TorusGeometry(4, 0.12, 10, 48), standard('#f7dfb0'));
     this.ferrisWheel.add(wheel);
@@ -375,8 +416,16 @@ export class CourseVisual {
     }
   }
 
-  update(timeSeconds: number, reducedMotion = false) {
+  update(timeSeconds: number, reducedMotion = false, celebrationSeconds = 0) {
     const time = reducedMotion ? 0 : timeSeconds;
+    const twilight = Math.max(0, Math.min(1, celebrationSeconds / 2));
+    const easedTwilight = twilight * twilight * (3 - 2 * twilight);
+    if (this.skyMaterial) {
+      const colors = ['topColor', 'middleColor', 'bottomColor'] as const;
+      colors.forEach((name, index) => {
+        this.skyMaterial?.uniforms[name]?.value.lerpColors(SKY_DAY[index]!, SKY_TWILIGHT[index]!, easedTwilight);
+      });
+    }
     for (const material of this.waterMaterials) material.uniforms.time!.value = reducedMotion ? 0 : timeSeconds % 3_600;
     this.clouds.forEach((cloud, index) => {
       cloud.position.x = (this.cloudOrigins[index] ?? cloud.position.x) + Math.sin(time * 0.08 + index) * 0.35;

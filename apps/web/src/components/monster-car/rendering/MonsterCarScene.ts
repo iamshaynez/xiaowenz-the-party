@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import type { MonsterCarBuild } from '@party/protocol';
 import { sampleMonsterCarFrame } from '@party/games';
-import type { MonsterCarRacePlan, MonsterCarFrameCar, MonsterCarRaceFrame } from '@party/games';
+import type { MonsterCarRacePlan, MonsterCarRaceFrame } from '@party/games';
 import { CarAssembly } from './CarAssembly';
 import { CourseVisual } from './CourseVisual';
 import { ParticleField } from './Particles';
-import { sampleCourse } from './courseMath';
+import { sampleCourse, COURSE_LENGTH } from './courseMath';
+import { sampleReactionPose } from './ReactionLibrary';
+import { samplePlaygroundMotion } from './PlaygroundMotion';
+import { FireworksField } from './FireworksField';
 import type { MonsterCarRenderScene } from './RenderSurface';
 
 function material(color: string, roughness = 0.82) {
@@ -25,16 +28,6 @@ function disposeGroup(group: THREE.Group) {
   materials.forEach((item) => item.dispose());
 }
 
-function reactionForwardOffset(cue: MonsterCarFrameCar['activeCue']) {
-  if (!cue) return 0;
-  const wave = Math.sin(cue.localProgress * Math.PI);
-  const forward = [
-    'spring-bounce', 'balloon-float', 'umbrella-sail', 'propeller-flight',
-    'rocket-popcorn', 'duck-paddle', 'scoop-hop', 'frog-hop',
-  ].includes(cue.primary.reaction);
-  return wave * cue.intensity * (forward ? 0.9 : -0.32);
-}
-
 export class MonsterCarWorld implements MonsterCarRenderScene {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-8, 8, 5, -5, 0.1, 400);
@@ -47,8 +40,10 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
   private garage: THREE.Group | null = null;
   private garageCar: CarAssembly | null = null;
   private garageSignature = '';
+  private garagePaint = 0;
   private course: CourseVisual | null = null;
   private particles: ParticleField | null = null;
+  private fireworks: FireworksField | null = null;
   private plan: MonsterCarRacePlan | null = null;
   private raceStartsAt = 0;
   private celebrating = false;
@@ -98,6 +93,13 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
   setGarage(build: MonsterCarBuild, paint: number) {
     const signature = JSON.stringify({ build, paint });
     if (this.mode === 'garage' && signature === this.garageSignature) return;
+    if (this.mode === 'garage' && this.garageCar && this.garagePaint === paint) {
+      for (const slot of ['wheels', 'front', 'rear', 'roof', 'driver'] as const) {
+        if (this.garageCar.build[slot] !== build[slot]) this.garageCar.setPart(slot, build[slot]);
+      }
+      this.garageSignature = signature;
+      return;
+    }
     if (this.mode !== 'garage') {
       this.clearWorld();
       this.mode = 'garage';
@@ -106,6 +108,7 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
       this.createGarage();
     }
     this.garageSignature = signature;
+    this.garagePaint = paint;
     if (this.garageCar) {
       this.root.remove(this.garageCar.root);
       this.garageCar.dispose();
@@ -155,6 +158,7 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
     this.camera.lookAt(0, 1.2, 0);
     this.updateProjection(this.aspect < 0.85 ? 6.7 : 5.6);
     this.sun.position.set(-7, 15, 9);
+    this.sun.intensity = 3.1;
     this.sunTarget.position.set(0, 0, 0);
   }
 
@@ -186,10 +190,14 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
       this.root.add(this.particles.mesh);
     }
     this.celebrating = celebrating;
+    if (celebrating && !this.fireworks) {
+      this.fireworks = new FireworksField(this.width > 720);
+      this.root.add(this.fireworks.points);
+    }
   }
 
   preferredFrameIntervalMs() {
-    return this.celebrating ? 50 : 0;
+    return this.celebrating ? 33 : 0;
   }
 
   setFrameListener(listener: ((frame: MonsterCarRaceFrame) => void) | null) {
@@ -206,13 +214,48 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
       return;
     }
     if (this.mode !== 'race' || !this.plan) return;
-    const elapsed = Math.max(0, Math.min(this.plan.durationMs, timeSeconds * 1_000 - this.raceStartsAt));
+    const rawElapsed = Math.max(0, timeSeconds * 1_000 - this.raceStartsAt);
+    const elapsed = Math.min(this.plan.durationMs, rawElapsed);
     const frame = sampleMonsterCarFrame(this.plan, elapsed);
     const hudTick = Math.floor(elapsed / 125);
     if (hudTick !== this.lastHudTick) {
       this.lastHudTick = hudTick;
       this.frameListener?.(frame);
     }
+
+    if (this.celebrating) {
+      const celebrationMs = Math.max(0, rawElapsed - this.plan.durationMs);
+      const playgroundCars = samplePlaygroundMotion(this.plan, celebrationMs);
+      const finish = sampleCourse(1);
+      const centerX = COURSE_LENGTH + 5;
+      const particleCars: { position: THREE.Vector3; cue: null; paint: number }[] = [];
+      for (const pose of playgroundCars) {
+        const car = this.cars.get(pose.playerId);
+        const racer = this.plan.racers.find((entry) => entry.playerId === pose.playerId);
+        if (!car || !racer) continue;
+        car.root.position.set(pose.position.x, pose.position.y, pose.position.z);
+        car.root.rotation.set(0, pose.yaw, pose.pitch);
+        car.update(timeSeconds, pose.travelDistance, null, reducedMotion, pose.celebration);
+        const shadow = this.shadows.get(pose.playerId);
+        if (shadow) {
+          shadow.position.set(pose.position.x, pose.position.y - pose.jump + 0.14, pose.position.z);
+          shadow.scale.set(1 + pose.jump * 0.3, 0.62 + pose.jump * 0.1, 1);
+          (shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0.08, 0.22 - pose.jump * 0.12);
+        }
+        particleCars.push({ position: car.root.position.clone(), cue: null, paint: racer.paint });
+      }
+      this.updateProjection(this.aspect < 0.85 ? 10.8 : 10.2);
+      this.camera.position.set(centerX + 7, finish.y + 8.5, finish.z + 17);
+      this.camera.lookAt(centerX, finish.y + 2.7, finish.z);
+      this.sun.position.set(centerX - 9, finish.y + 19, finish.z + 12);
+      this.sun.intensity = 2.15;
+      this.sunTarget.position.set(centerX, finish.y, finish.z);
+      this.course?.update(timeSeconds, reducedMotion, celebrationMs / 1_000);
+      this.particles?.update(timeSeconds, centerX, particleCars, true, reducedMotion);
+      this.fireworks?.update(celebrationMs / 1_000, reducedMotion);
+      return;
+    }
+
     let minimumX = Number.POSITIVE_INFINITY;
     let maximumX = Number.NEGATIVE_INFINITY;
     const particleCars: { position: THREE.Vector3; cue: (typeof frame.cars)[number]['activeCue']; paint: number }[] = [];
@@ -222,7 +265,10 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
       const racer = this.plan.racers.find((entry) => entry.playerId === carFrame.playerId);
       if (!car || !racer) continue;
       const point = sampleCourse(carFrame.progress);
-      const carX = point.x + reactionForwardOffset(carFrame.activeCue);
+      const reactionPose = carFrame.activeCue
+        ? sampleReactionPose({ ...carFrame.activeCue.primary, intensity: carFrame.activeCue.intensity }, carFrame.activeCue.stimulus, carFrame.activeCue.localProgress, reducedMotion)
+        : null;
+      const carX = point.x + (reactionPose?.forward ?? 0);
       car.root.position.set(carX, point.y + 0.04, point.z + carFrame.lane * 1.18);
       car.root.rotation.set(0, point.yaw, point.pitch);
       car.update(timeSeconds, point.x, carFrame.activeCue, reducedMotion);
@@ -231,10 +277,10 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
       const shadow = this.shadows.get(carFrame.playerId);
       if (shadow) {
         shadow.position.set(carX, point.y + 0.075, point.z + carFrame.lane * 1.18);
-        const lift = carFrame.activeCue ? Math.sin(carFrame.activeCue.localProgress * Math.PI) : 0;
-        shadow.scale.set(1 + lift * 0.35, 0.62 + lift * 0.15, 1);
+        const lift = reactionPose?.lift ?? 0;
+        shadow.scale.set(1 + lift * 0.25, 0.62 + lift * 0.1, 1);
         const shadowMaterial = shadow.material as THREE.MeshBasicMaterial;
-        shadowMaterial.opacity = 0.22 - lift * 0.09;
+        shadowMaterial.opacity = Math.max(0.07, 0.22 - lift * 0.08);
       }
       particleCars.push({ position: car.root.position.clone(), cue: carFrame.activeCue, paint: racer.paint });
     }
@@ -248,6 +294,7 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
     this.camera.position.set(focusX + 5.2, ground.y + 5.5, ground.z + 16.5);
     this.camera.lookAt(focusX, ground.y + 1.65, ground.z);
     this.sun.position.set(focusX - 9, ground.y + 19, ground.z + 12);
+    this.sun.intensity = 3.1;
     this.sunTarget.position.set(focusX, ground.y, ground.z);
     this.course?.update(timeSeconds, reducedMotion);
     this.particles?.update(timeSeconds, focusX, particleCars, this.celebrating || elapsed > 28_500, reducedMotion);
@@ -271,8 +318,11 @@ export class MonsterCarWorld implements MonsterCarRenderScene {
     this.shadows.clear();
     this.particles?.dispose();
     this.particles = null;
+    this.fireworks?.dispose();
+    this.fireworks = null;
     this.root.clear();
     this.plan = null;
+    this.celebrating = false;
   }
 
   dispose() {

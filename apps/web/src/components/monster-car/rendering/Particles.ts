@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MonsterCarFrameCar } from '@party/games';
+import { primaryParticle } from './ReactionLibrary';
 
 interface ParticleCar {
   position: THREE.Vector3;
@@ -69,11 +70,14 @@ export class ParticleField {
     if (!cue) return;
     const age = cue.localProgress * cue.durationMs / 1_000;
     const fade = Math.sin(cue.localProgress * Math.PI);
-    const water = cue.stimulus === 'water';
-    const wind = cue.stimulus === 'wind';
-    const popcorn = cue.primary.reaction === 'rocket-popcorn';
-    const bubbles = cue.primary.reaction === 'bubble-foam' || cue.primary.reaction === 'bubble-trail';
-    const count = popcorn || bubbles ? 24 : water ? 22 : wind ? 16 : 13;
+    const kind = primaryParticle(cue);
+    const water = kind === 'water';
+    const wind = kind === 'wind';
+    const popcorn = kind === 'popcorn';
+    const bubbles = kind === 'bubble';
+    const steam = kind === 'steam';
+    const magical = kind === 'notes' || kind === 'spark' || kind === 'stars';
+    const count = popcorn || bubbles || magical ? 24 : water ? 22 : wind ? 16 : 13;
     for (let index = 0; index < count; index += 1) {
       const a = hash(index + car.paint * 71 + cue.startAtMs * 0.01);
       const b = hash(index * 3.17 + car.paint * 37);
@@ -91,6 +95,15 @@ export class ParticleField {
         position.x += -1.8 - age * (0.7 + a);
         position.y += 1.1 + age * (1.5 + b * 2) - (popcorn ? age * age * 1.5 : 0);
         position.z += (c - 0.5) * 1.5;
+      } else if (steam) {
+        position.x += -0.5 - age * 0.45;
+        position.y += 1.2 + age * (2.2 + b * 1.3);
+        position.z += (c - 0.5) * (0.5 + age);
+      } else if (magical) {
+        const angle = a * Math.PI * 2 + age * 2;
+        position.x += Math.cos(angle) * age * (1.4 + b);
+        position.y += 0.8 + Math.sin(age * Math.PI) * (1.1 + b * 1.2);
+        position.z += Math.sin(angle) * age * (1.4 + c);
       } else {
         position.x += -0.9 - age * (0.8 + a * 1.4);
         position.y += 0.2 + b * 0.5 + age * 0.3;
@@ -99,8 +112,10 @@ export class ParticleField {
       const color = water ? (index % 2 ? '#bceee8' : '#6fc5d2')
         : popcorn ? (index % 2 ? '#fff0ae' : '#f6b36c')
           : bubbles ? '#d5f5ee'
-            : wind ? (index % 2 ? '#b5d47f' : '#f1d389')
-              : '#d5ba8c';
+            : steam ? (index % 2 ? '#f4f0df' : '#c8d8cf')
+              : magical ? (kind === 'notes' ? CONFETTI[index % CONFETTI.length]! : index % 2 ? '#ffe890' : '#d7b9f2')
+                : wind ? (index % 2 ? '#b5d47f' : '#f1d389')
+                  : '#d5ba8c';
       this.add(position, Math.max(0.05, fade) * (0.55 + a * 1.15), color, time + index);
     }
   }

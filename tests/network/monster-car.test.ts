@@ -23,6 +23,13 @@ const SECOND_BUILD: MonsterCarBuild = {
   roof: 'antenna',
   driver: 'alien',
 };
+const EXPANDED_BUILD: MonsterCarBuild = {
+  wheels: 'duck-float',
+  front: 'piano',
+  rear: 'snail',
+  roof: 'whale',
+  driver: 'lion',
+};
 
 let app: FastifyInstance;
 let baseUrl = '';
@@ -234,6 +241,30 @@ describe('怪兽汽车真实网络对局', () => {
       expect(new Set(game.plan?.racers.map((racer) => racer.lane)).size).toBe(4);
       expect(game.plan?.events).toEqual(plans[0]!.plan?.events);
     }
+  });
+
+  it('真实协议与房间服务接受每个槽位的新零件，并把原样车辆写入公开赛事计划', async () => {
+    const { owner, second, ownerClient, secondClient } = await twoPlayerParty();
+
+    ownerClient.send(buildCar('mc-expanded-owner', EXPANDED_BUILD));
+    const [ack, accepted] = await Promise.all([
+      ownerClient.waitFor('action-ack'),
+      secondClient.waitForMessage((message) =>
+        message.type === 'room' && gameOf(message)?.readyPlayerIds.includes(owner.playerId) === true),
+    ]);
+    expect(ack).toMatchObject({ actionId: 'mc-expanded-owner' });
+    expect(gameOf(accepted)?.builds[owner.playerId]).toEqual(EXPANDED_BUILD);
+
+    secondClient.send(buildCar('mc-expanded-second', SECOND_BUILD));
+    const countdown = await waitForPhase(ownerClient, 'countdown');
+    expect(countdown.builds).toEqual({
+      [owner.playerId]: EXPANDED_BUILD,
+      [second.playerId]: SECOND_BUILD,
+    });
+    const expandedRacer = countdown.plan?.racers.find((racer) => racer.playerId === owner.playerId);
+    expect(expandedRacer?.build).toEqual(EXPANDED_BUILD);
+    expect(expandedRacer?.cues.length).toBe(countdown.plan?.events.length);
+    expect(expandedRacer?.cues.every((cue) => cue.secondary.length > 0)).toBe(true);
   });
 
   it('malformed JSON、缺件和非法零件都在协议边界拒绝，连接与装车状态保持可用', async () => {
