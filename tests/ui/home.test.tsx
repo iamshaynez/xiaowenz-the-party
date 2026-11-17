@@ -47,7 +47,9 @@ describe('玩家进入派对', () => {
 
     expect(screen.getByRole('heading', { name: '今晚的游戏货架' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /谁最可能/ })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getAllByRole('radio')).toHaveLength(3);
+    expect(screen.getAllByRole('radio')).toHaveLength(7);
+    expect(screen.getByRole('radio', { name: /五子棋/ })).toHaveTextContent('2 人');
+    expect(screen.getByRole('radio', { name: /德州扑克/ })).toHaveTextContent('2–6 人');
     expect(screen.getByText('破冰')).toBeInTheDocument();
     expect(screen.getByText('儿童')).toBeInTheDocument();
     const monsterCar = screen.getByRole('radio', { name: /怪兽汽车/ });

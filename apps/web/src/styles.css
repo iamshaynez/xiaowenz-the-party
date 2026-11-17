@@ -669,3 +669,215 @@ button { border: 0; }
   .mc-social-card { left: 12px; bottom: 18px; padding: 10px 13px; }
   .mc-social-card strong { font-size: 10px; }
 }
+
+/* ==========================================================================
+   棋牌室 · Board & Card Tabletop — four three.js parlor games share one shell:
+   a club-lit stage fills the viewport, with reachable DOM controls below it.
+   ========================================================================== */
+.bt-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(120% 90% at 50% 0%, #1b1a26 0%, #101016 58%, #0a0a0f 100%);
+  overflow: hidden;
+}
+.bt-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  background: rgba(12, 12, 18, 0.72);
+  border-bottom: 1px solid rgba(255, 220, 150, 0.12);
+  backdrop-filter: blur(8px);
+  z-index: 3;
+  flex-wrap: wrap;
+}
+.bt-game-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #f0e6cf;
+  font-size: 15px;
+}
+.bt-stage { position: relative; flex: 1; min-height: 0; }
+.bt-canvas, .gm-render-host, .ld-render-host, .dd-render-host, .th-render-host {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.bt-canvas { width: 100%; height: 100%; display: block; }
+.bt-status {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(14, 14, 20, 0.78);
+  border: 1px solid rgba(255, 214, 120, 0.22);
+  color: #ded4bd;
+  font-size: 14px;
+  white-space: nowrap;
+  z-index: 2;
+  backdrop-filter: blur(6px);
+}
+.bt-status.is-my-turn {
+  color: #101016;
+  background: linear-gradient(120deg, #ffd76e, #ffbe5c);
+  border-color: rgba(255, 240, 200, 0.6);
+  font-weight: 700;
+  box-shadow: 0 6px 24px rgba(255, 190, 90, 0.35);
+}
+.bt-action-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgba(12, 12, 18, 0.82);
+  border: 1px solid rgba(255, 214, 120, 0.2);
+  backdrop-filter: blur(10px);
+  z-index: 3;
+  max-width: min(94vw, 720px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.bt-primary-button, .bt-ghost-button {
+  appearance: none;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.bt-primary-button {
+  border: none;
+  color: #191408;
+  background: linear-gradient(130deg, #ffd76e, #f0a93e);
+  box-shadow: 0 8px 22px rgba(240, 170, 70, 0.32);
+}
+.bt-primary-button:disabled { filter: grayscale(0.7); opacity: 0.6; cursor: default; }
+.bt-primary-button:not(:disabled):active { transform: translateY(1px) scale(0.98); }
+.bt-ghost-button {
+  border: 1px solid rgba(240, 230, 207, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ece2ca;
+}
+.bt-ghost-button:disabled { opacity: 0.45; cursor: default; }
+.bt-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(8, 8, 12, 0.66);
+  backdrop-filter: blur(6px);
+  z-index: 4;
+  padding: 24px;
+  text-align: center;
+  overflow-y: auto;
+}
+.bt-overlay h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 26px; color: #ffe4a8; }
+.bt-overlay p { margin: 0; color: #cfc5ad; }
+.bt-overlay-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.bt-waiting { color: #a99f88; font-size: 14px; }
+.bt-loading-chip { font-size: 44px; display: block; text-align: center; animation: bt-deal 1.2s ease-in-out infinite; }
+@keyframes bt-deal { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-10px) rotate(8deg); } }
+
+/* 五子棋 */
+.gm-scoreboard { display: flex; align-items: center; gap: 12px; font-size: 13.5px; color: #d9cfb6; flex-wrap: wrap; }
+.gm-scoreboard .is-own { color: #ffd76e; font-weight: 700; }
+.gm-score-sep { color: #8a8271; font-size: 12px; }
+.gm-stone-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(255,255,255,0.25); }
+.gm-stone-black { background: radial-gradient(circle at 35% 30%, #4a4a55, #14141a 70%); }
+.gm-stone-white { background: radial-gradient(circle at 35% 30%, #ffffff, #cfc8b8 75%); }
+.gm-dom-board {
+  position: absolute; inset: 12px; overflow: auto; display: grid;
+  grid-auto-rows: minmax(24px, 1fr); gap: 1px; padding: 10px;
+  background: linear-gradient(150deg, #8a5a33, #5c3820); border-radius: 12px;
+}
+.gm-dom-row { display: grid; grid-template-columns: repeat(15, minmax(24px, 1fr)); gap: 1px; }
+.gm-dom-cell {
+  border: 1px solid rgba(40, 24, 12, 0.5); border-radius: 50%;
+  background: transparent; cursor: pointer; color: #e8dcc0; font-size: 10px; padding: 0;
+}
+.gm-dom-cell:not(:disabled):hover { background: rgba(255, 230, 170, 0.25); }
+.gm-dom-cell.is-black { background: radial-gradient(circle at 35% 30%, #4a4a55, #14141a 72%); border-color: #000; }
+.gm-dom-cell.is-white { background: radial-gradient(circle at 35% 30%, #ffffff, #cfc8b8 78%); border-color: #96907e; }
+.gm-dom-cell.is-win { box-shadow: 0 0 0 2px #ffd76e; }
+
+/* 飞行棋 */
+.ld-standings { display: flex; gap: 12px; font-size: 13px; color: #d9cfb6; flex-wrap: wrap; }
+.ld-standings .is-turn { color: #ffd76e; font-weight: 700; }
+.ld-standings .is-own { text-decoration: underline dotted rgba(255, 215, 110, 0.6); }
+.ld-seat-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.ld-roll-button { padding: 13px 30px; font-size: 17px; }
+.ld-move-dock { gap: 8px; }
+.ld-move-button {
+  appearance: none; border: 2px solid; border-radius: 12px; background: rgba(255, 255, 255, 0.08);
+  color: #f2e9d4; font-weight: 700; padding: 10px 16px; cursor: pointer; font-size: 14px;
+}
+.ld-move-button:not(:disabled):hover { background: rgba(255, 220, 140, 0.18); }
+.ld-blocked, .ld-six { font-style: normal; color: #ffb287; margin-left: 6px; }
+.ld-dom-board { position: absolute; inset: 12px; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; align-content: start; }
+.ld-dom-plane {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #e9e0c8; font-size: 13px;
+}
+.ld-dom-plane:not(:disabled) { border-color: #ffd76e; cursor: pointer; }
+.ld-ranking { margin: 0; padding: 0; list-style: none; color: #ded4bd; display: grid; gap: 6px; }
+.ld-ranking .is-own { color: #ffd76e; font-weight: 700; }
+
+/* 斗地主 */
+.dd-scores { display: flex; gap: 12px; font-size: 13px; color: #d9cfb6; flex-wrap: wrap; }
+.dd-scores .is-landlord { color: #ffd76e; }
+.dd-scores .is-own { text-decoration: underline dotted rgba(255, 215, 110, 0.6); }
+.dd-dom-table { position: absolute; inset: 12px; overflow: auto; display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; align-content: flex-start; }
+.dd-dom-card {
+  appearance: none; border-radius: 8px; min-width: 52px; padding: 10px 8px;
+  background: #fbf7ee; color: #23222b; font-weight: 700; font-size: 13px; cursor: pointer;
+  border: 2px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.dd-dom-card.is-selected { transform: translateY(-8px); border-color: #ffd76e; }
+.dd-dom-card:disabled { cursor: default; opacity: 0.8; }
+.dd-deltas { margin: 0; padding: 0; list-style: none; color: #ded4bd; display: grid; gap: 6px; font-size: 15px; }
+.dd-deltas strong { color: #ffd76e; }
+
+/* 德州扑克 */
+.th-meta { display: flex; gap: 14px; font-size: 13px; color: #d9cfb6; flex-wrap: wrap; }
+.th-actions { gap: 14px; }
+.th-fold-button {
+  appearance: none; border-radius: 12px; padding: 10px 18px; font-weight: 700; font-size: 15px; cursor: pointer;
+  background: rgba(255, 123, 111, 0.16); color: #ffb0a7; border: 1px solid rgba(255, 123, 111, 0.5);
+}
+.th-fold-button:not(:disabled):hover { background: rgba(255, 123, 111, 0.3); }
+.th-raise-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.th-raise-slider { width: min(320px, 46vw); accent-color: #ffd76e; }
+.th-quick-amounts { display: flex; gap: 6px; }
+.th-quick-amounts button {
+  appearance: none; border: 1px solid rgba(240, 230, 207, 0.35); background: rgba(255,255,255,0.06);
+  color: #ece2ca; border-radius: 9px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+}
+.th-pots { margin: 0; padding: 0; list-style: none; color: #ded4bd; display: grid; gap: 7px; font-size: 15px; }
+.th-pots .is-turn { color: #ffd76e; }
+.th-refund, .th-eliminated { color: #a99f88; font-size: 13.5px; }
+.th-revealed { font-size: 13.5px; }
+.th-ranking { margin: 0; padding: 0; list-style: none; color: #ded4bd; display: grid; gap: 6px; }
+.th-ranking .is-own { color: #ffd76e; font-weight: 700; }
+.th-stack-hint { color: #a99f88; font-size: 13px; }
+.th-dom-table { position: absolute; inset: 12px; overflow: auto; padding: 14px; color: #ded4bd; display: grid; gap: 8px; align-content: start; }
+.th-dom-table .is-turn { color: #ffd76e; font-weight: 700; }
