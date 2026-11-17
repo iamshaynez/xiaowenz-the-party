@@ -206,11 +206,13 @@ button { border: 0; }
 .game-option strong { font-size: 15px; letter-spacing: -0.03em; }
 .game-option__meta { color: #767a73; font-size: 9px; }
 .game-option.is-active .game-option__meta { color: #596125; }
+.game-option__badge { position: absolute; right: 10px; bottom: 10px; padding: 3px 7px; color: #8a6237; background: #f2e0cd; border-radius: 100px; font-size: 9px; font-weight: 700; }
 .game-option__check { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; display: grid; place-items: center; color: var(--lime); background: var(--ink); border-radius: 50%; }
 .game-setup-card__body { padding: 25px; }
 .game-setup-card__body > .mini-label { color: #8c8f7f; font-size: 9px; }
 .game-setup-card__body h2 { margin: 4px 0 10px; font-size: 30px; letter-spacing: -0.04em; }
 .game-setup-card__body > p { color: #767a73; font-size: 12px; line-height: 1.8; }
+.game-duration { margin: 8px 0 0; color: #6d7022; font-size: 11px; font-weight: 700; }
 .game-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
 .game-tags span { padding: 4px 9px; color: #6d7022; background: #edf2be; border-radius: 100px; font-size: 9px; font-weight: 700; }
 .game-rules { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 24px; }

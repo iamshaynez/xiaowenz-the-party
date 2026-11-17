@@ -15,18 +15,6 @@ interface LobbyProps {
   pending: boolean;
 }
 
-const GAME_RULES: Record<GameId, string[]> = {
-  'most-likely': ['3–12 人', '不能投自己', '平票都得分'],
-  'piggy-bank': ['3–12 人', '锤子有限', '小心纸糊罐'],
-  'monster-car': ['2–4 人', '五部位自由组装', '30 秒森林竞演'],
-};
-
-const GAME_ENGLISH: Record<GameId, string> = {
-  'most-likely': "WHO'S MOST LIKELY",
-  'piggy-bank': 'PIGGY BANK',
-  'monster-car': 'FOREST MOTOR CLUB',
-};
-
 export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps) {
   const [gameId, setGameId] = useState<GameId>(() => readRoomGamePreference(room.code));
   const [rounds, setRounds] = useState(() => GAMES.find((game) => game.id === readRoomGamePreference(room.code))?.roundsOptions[0] ?? 3);
@@ -36,7 +24,10 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
   const playerCount = room.players.filter((player) => player.role === 'player').length;
   const selected = GAMES.find((game) => game.id === gameId) ?? GAMES[0]!;
   const selectedId = selected.id as GameId;
-  const rules = GAME_RULES[selectedId];
+  // 在场人数能玩的游戏排前面，等的或超员的沉底，方便游戏变多后快速选中能开局的。
+  const fitsPlayerCount = (game: (typeof GAMES)[number]) =>
+    playerCount >= game.minPlayers && playerCount <= game.maxPlayers;
+  const orderedGames = [...GAMES].sort((a, b) => Number(fitsPlayerCount(b)) - Number(fitsPlayerCount(a)));
 
   useEffect(() => {
     void QRCode.toDataURL(window.location.href, {
@@ -95,7 +86,7 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
 
         <aside className="game-setup-card">
           <div className="game-picker" role="radiogroup" aria-label="选择游戏">
-            {GAMES.map((game) => (
+            {orderedGames.map((game) => (
               <button
                 key={game.id}
                 type="button"
@@ -110,19 +101,25 @@ export function Lobby({ room, playerId, onStart, onLeave, pending }: LobbyProps)
                 <span className="game-option__emoji">{game.emoji}</span>
                 <strong>{game.name}</strong>
                 <span className="game-option__meta">{game.minPlayers}–{game.maxPlayers} 人</span>
+                {game.minPlayers > playerCount
+                  ? <span className="game-option__badge">还差 {game.minPlayers - playerCount} 人</span>
+                  : game.maxPlayers < playerCount
+                    ? <span className="game-option__badge">限 {game.maxPlayers} 人</span>
+                    : null}
                 {gameId === game.id && <span className="game-option__check"><Check size={14} /></span>}
               </button>
             ))}
           </div>
           <div className="game-setup-card__body">
-            <span className="mini-label">{GAME_ENGLISH[selectedId]}</span>
+            <span className="mini-label">{selected.englishName}</span>
             <h2>{selected.name}</h2>
             <p>{selected.description}</p>
+            <p className="game-duration">约 {rounds * selected.minutesPerRound} 分钟</p>
             <div className="game-tags">
               {selected.tags.map((tag) => <span key={tag}>{tag}</span>)}
             </div>
             <div className="game-rules">
-              {rules.map((rule) => <span key={rule}>{rule}</span>)}
+              {selected.rules.map((rule) => <span key={rule}>{rule}</span>)}
             </div>
             {isOwner ? (
               <>
