@@ -1,9 +1,17 @@
 import { z } from 'zod';
+import { monsterCarActionSchema } from './monster-car';
+
+export {
+  MONSTER_CAR_PART_IDS,
+  MONSTER_CAR_SLOTS,
+  monsterCarBuildSchema,
+} from './monster-car';
+export type { MonsterCarBuild, MonsterCarSlot } from './monster-car';
 
 export const AVATARS = ['🦊', '🐼', '🐸', '🐯', '🐰', '🐨', '🦁', '🐷', '🐵', '🐙', '🦄', '🐳'] as const;
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-export const GAME_IDS = ['most-likely', 'piggy-bank'] as const;
+export const GAME_IDS = ['most-likely', 'piggy-bank', 'monster-car'] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
 export const roomCodeSchema = z.string().trim().toUpperCase().regex(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
@@ -20,7 +28,7 @@ export const piggyBankActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('choose'), choice: z.enum(['guard', 'smash']) }).strict(),
   z.object({ type: z.literal('play-again') }).strict(),
 ]);
-export const gameActionSchema = z.union([mostLikelyActionSchema, piggyBankActionSchema]);
+export const gameActionSchema = z.union([mostLikelyActionSchema, piggyBankActionSchema, monsterCarActionSchema]);
 export type GameAction = z.infer<typeof gameActionSchema>;
 
 export const createRoomRequestSchema = z.object({

@@ -47,6 +47,40 @@ describe('派对大厅', () => {
     expect(onStart).toHaveBeenCalledWith('piggy-bank', 6);
   });
 
+  it('房主可以选择怪兽汽车，单场开局且没有轮数选择', async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    render(<Lobby room={room} playerId="owner" onStart={onStart} onLeave={vi.fn()} pending={false} />);
+
+    await user.click(screen.getByRole('radio', { name: /怪兽汽车/ }));
+    expect(screen.getByText('装出全世界独一无二的怪车，一起穿过会互动的魔法森林。')).toBeInTheDocument();
+    expect(screen.getByText('五部位自由组装')).toBeInTheDocument();
+    expect(screen.queryByText('玩几轮？')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '开始游戏' }));
+    expect(onStart).toHaveBeenCalledWith('monster-car', 1);
+  });
+
+  it('怪兽汽车超过四人时禁止开局并说明人数上限', async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+    const crowdedRoom: RoomView = {
+      ...room,
+      players: [
+        ...players,
+        { id: 'p4', nickname: '第四位', avatar: '🐨', role: 'player', connected: true },
+        { id: 'p5', nickname: '第五位', avatar: '🐯', role: 'player', connected: true },
+      ],
+    };
+    render(<Lobby room={crowdedRoom} playerId="owner" onStart={onStart} onLeave={vi.fn()} pending={false} />);
+
+    await user.click(screen.getByRole('radio', { name: /怪兽汽车/ }));
+    const start = screen.getByRole('button', { name: '开始游戏' });
+    expect(start).toBeDisabled();
+    expect(screen.getByText('「怪兽汽车」最多 4 位玩家，请选择其他游戏')).toBeInTheDocument();
+    await user.click(start);
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it('普通玩家不能开局，会明确看到正在等待房主', () => {
     render(<Lobby room={room} playerId="p2" onStart={vi.fn()} onLeave={vi.fn()} pending={false} />);
     expect(screen.getByText('等房主开局，可以先热个身。')).toBeInTheDocument();
