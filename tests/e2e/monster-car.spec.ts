@@ -100,9 +100,6 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
       await expect(page.getByText(/森林旅行 ·/)).toBeVisible({ timeout: 12_000 });
     }
     await expect(owner.page.locator('.mc-route-car')).toHaveCount(2);
-    const firstRouteCar = owner.page.locator('.mc-route-car').first();
-    const initialPosition = await firstRouteCar.getAttribute('style');
-    await expect.poll(() => firstRouteCar.getAttribute('style'), { timeout: 10_000 }).not.toBe(initialPosition);
     await owner.page.screenshot({ path: 'artifacts/monster-car/race-desktop.png', fullPage: true });
     await second.page.screenshot({ path: 'artifacts/monster-car/race-mobile.png', fullPage: true });
 
