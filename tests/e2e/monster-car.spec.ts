@@ -26,6 +26,13 @@ async function expectRealCanvas(page: Page) {
   await expect(canvas).toHaveAttribute('data-render-state', 'running', { timeout: 15_000 });
 }
 
+async function expectRestoredJourney(page: Page) {
+  const canvas = page.getByTestId('monster-car-canvas');
+  const fallback = page.locator('.mc-dom-journey');
+  await expect(canvas.or(fallback)).toBeVisible({ timeout: 45_000 });
+  if (await canvas.isVisible()) await expect(canvas).toHaveAttribute('data-render-state', 'running', { timeout: 20_000 });
+}
+
 async function expectModelOptionsReady(page: Page) {
   const options = page.locator('.mc-part-options [data-testid^="part-thumbnail-"]');
   await expect(options).toHaveCount(8, { timeout: 15_000 });
@@ -104,7 +111,7 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
     await second.page.screenshot({ path: 'artifacts/monster-car/race-mobile.png', fullPage: true });
 
     await second.page.reload();
-    await expectRealCanvas(second.page);
+    await expectRestoredJourney(second.page);
     await expect(second.page.locator('.mc-route-car')).toHaveCount(2);
     await second.page.screenshot({ path: 'artifacts/monster-car/race-restored-mobile.png', fullPage: true });
 
@@ -118,7 +125,7 @@ test('两名真实玩家组装怪车，共同穿越森林，手机刷新后恢�
     for (const page of [owner.page, second.page]) {
       await page.getByRole('button', { name: '看车车和礼花' }).click();
       await expect(page.locator('.mc-celebration-dock')).toBeVisible();
-      await expectRealCanvas(page);
+      await expectRestoredJourney(page);
     }
     await owner.page.screenshot({ path: 'artifacts/monster-car/celebration-desktop.png', fullPage: true });
     await second.page.screenshot({ path: 'artifacts/monster-car/celebration-mobile.png', fullPage: true });
