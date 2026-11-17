@@ -101,9 +101,9 @@
 | `roof` | `mushroom` / `umbrella` / `propeller` / `antenna` / `teapot` / `birdcage` / `cactus` / `whale` |
 | `driver` | `bear` / `frog` / `duck` / `alien` / `robot` / `penguin` / `ghost` / `lion` |
 
-缺件、额外字段、非法零件或错误动作形状在 WebSocket schema 边界返回 `INVALID_MESSAGE`。`build-car` 仅限本局参与者且只能在 `building` 使用；每次成功提交会保存 build 并标记 ready，准备后仍可用**新的** `actionId` 改装。同一动作重发沿用通用幂等规则，同 `actionId` 换 build 返回 `ACTION_CONFLICT`。`play-again` 只允许房主在 `finished` 使用。
+缺件、额外字段、非法零件或错误动作形状在 WebSocket schema 边界返回 `INVALID_MESSAGE`。`build-car` 仅限本局参与者且只能在 `building` 使用；每次成功提交会保存 build 并标记 ready，准备后仍可用**新的** `actionId` 改装。同一动作重发沿用通用幂等规则，同 `actionId` 换 build 返回 `ACTION_CONFLICT`。`play-again` 只允许房主在 `finished` 使用；它保留所有参与者最后提交的 build，清空 readyPlayerIds/plan/standings 和赛事时间边界，并用新的服务端种子回到 `building`。未提交的本地草稿不会被保存或重放。
 
-当前五槽各八款、共 40 个合法 ID。此次扩展保留全部旧 ID 及其数组顺序，只在各槽末尾追加新 ID；`monster-car` 游戏版本和房间快照 `schemaVersion` 都保持 1。旧版本 1 build/plan 快照因此仍可恢复，且不需要新增协议字段；包含新 ID 的快照不能回滚给只认识旧 20 款的实现。
+当前五槽各八款、共 40 个合法 ID。此次扩展保留全部旧 ID 及其数组顺序，只在各槽末尾追加新 ID；`monster-car` 游戏版本和房间快照 `schemaVersion` 都保持 1。旧版本 1 build/plan 快照因此仍可恢复，且不需要新增协议字段；包含新 ID 的快照不能回滚给只认识旧 20 款的实现。四款一页的货架、指针旋转、本地“惊喜一下”、ShowPlan、身份旗、故事/天气/社交/相机和循环合影都不新增动作或消息，也不改变以上版本兼容承诺。
 
 离开与 ping：
 
@@ -172,7 +172,7 @@ interface MonsterCarRacePlan {
 | `primary` / `secondary[]` | 一项主反应与至少一项次要反应；每项均为 `reaction`、`durationMs`、`intensity`、`highlight`、`partId`、`slot`。slot 可为五槽之一或 `chassis`。 |
 | `finishOrder` | 服务端用种子洗牌的玩家 ID 顺序；终局 standings 必须按它生成。零件不影响该顺序或 pace。 |
 
-整个 plan 可 JSON 序列化，并保存在游戏版本 1 的房间快照中。比赛中服务重启或玩家重连会恢复同一 plan 和时间边界，不重新生成种子或名次。
+整个 plan 可 JSON 序列化，并保存在游戏版本 1 的房间快照中。比赛中服务重启或玩家重连会恢复同一 plan 和时间边界，不重新生成种子或名次。本次展示升级不改变 `createMonsterCarRacePlan` 的 RNG 消耗顺序；固定种子的 events、finishOrder、pace 与 finishAtMs golden 回归用于防止身份、天气、社交或相机代码意外挤占赛事随机流。
 
 **公开性边界**：`standings` 虽在 `finished` 才填充，但 `plan.finishOrder` 从 `countdown` 起已经随完整计划发送；它以及 builds、cues、highlight 都不是秘密。不要根据“结算尚未展示”推断网络载荷隐藏了最终顺序。
 
@@ -182,7 +182,19 @@ interface MonsterCarRacePlan {
 
 浏览器在 ready/重连后发送现有 `ping`，用 `pong.now` 与往返中点估算服务端时钟偏移，再根据 `raceStartsAt` 计算 elapsed 并在本地 `requestAnimationFrame` 中采样。该偏移只校正显示，不成为权威输入。`MonsterCarRaceFrame`、车辆坐标与 HUD 更新**不是 WebSocket 消息类型**，客户端不能通过它们提交位置或名次。服务端在 racing 中途没有业务变化时不发送周期性 `room` 帧，只在进入 `racing`、进入 `finished` 等其他状态变化时同步。WebGL 降级路径也调用同一纯采样函数，不依赖 canvas 提供 HUD 帧。
 
-进入 `finished` 后，权威视图、时间边界和 standings 均保持既有结构。`PlaygroundMotion` 只根据同一 plan 与本地赛后绝对时间持续计算绕行/跳跃，`FireworksField` 和结果卡自动收起也都发生在浏览器；没有 `celebrating` 阶段、赛后位置消息、结果卡计时消息或新增快照字段。
+进入 `finished` 后，权威视图、时间边界和 standings 均保持既有结构。`PlaygroundMotion` 与 `FinaleMotion` 只根据同一 plan 和本地赛后绝对时间计算入场、绕行、编队合影与返场，`FireworksField`、操场相机和结果卡自动收起也都发生在浏览器；没有 `celebrating`/`photo` 服务端阶段、赛后位置消息、结果卡计时消息或新增快照字段。
+
+### 本地展示计划不属于网络协议
+
+`MonsterCarShowPlan` 由浏览器通过 `createMonsterCarShowPlan(plan, players)` 从已有公开数据生成，结构为 `identities`、`avatars`、`story`、`socialMoments`、`finaleSeed`。它是可 JSON 序列化的纯本地数据，**不是** `MonsterCarView`、`MonsterCarRacePlan` 或 WebSocket 消息的成员，也不进入房间快照。玩家头像继续使用 `room.players` 中已有公开字段，不为此新增会话资料或隐私例外。
+
+- `CarIdentity` 按 playerId/avatar/参与者索引派生配色、accent、dots/stripes/stars/checker 花纹、有限车身比例、悬挂相位和旗帜编号；头像旗使用已有公开 avatar。身份与赛事 seed/RNG 无关。
+- 六个 story 分别选择 fireflies/rain/petals/flowers/acorns/lanterns 天气及天空、暮色、雾、背景、阳光和装饰参数；天气与镜头焦点只在本地渲染。
+- socialMoments 为不重叠的两人互动，包含 actor、target、绝对 start、duration 与 caption；2/3 辆车一段，4 辆车两段。`sampleSocialPose` 与 `sampleRaceCamera` 都是绝对时间纯函数，不上传互动、镜头或姿态。
+- `samplePerformanceCue` 给已有 cue 增加本地 320ms 预备与至多 420ms 跟随，减少动效时取消扩展。它不修改 plan.cues，也不扩展网络采样器用于 HUD/音效的 `activeCue` 窗口。
+- 车库拖动/键盘旋转、0.45 秒换件弹跳、开赛最初 900ms 的视觉前冲和“惊喜一下”都是本地行为。“惊喜一下”只生成完整 draft；仍须发送既有 `build-car`，不消耗服务端 RNG。
+
+赛后 `FinaleMotion` 每 20 秒循环：5.0–6.4 秒进入队形，6.4–9.4 秒停稳合影，9.4–11.4 秒返回圆环；2/3/4 辆车分别轮换两组、两组、三组队形。`PlaygroundCamera` 按车辆数、落地边界、横竖屏及 results/photo 模式调整构图。所有这些值均可由 plan 与绝对赛后时间重建，**不改变 `RacePlan`、standings、版本 1 快照或网络广播频率**。
 
 ### 反应协议与通用回退
 

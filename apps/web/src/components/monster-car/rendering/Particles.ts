@@ -67,7 +67,7 @@ export class ParticleField {
 
   private addReaction(car: ParticleCar, time: number) {
     const cue = car.cue;
-    if (!cue) return;
+    if (!cue || cue.localProgress <= 0 || cue.localProgress >= 1) return;
     const age = cue.localProgress * cue.durationMs / 1_000;
     const fade = Math.sin(cue.localProgress * Math.PI);
     const kind = primaryParticle(cue);

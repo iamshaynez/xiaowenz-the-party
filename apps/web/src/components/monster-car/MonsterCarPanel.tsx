@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Check, Maximize2, RotateCcw, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { MONSTER_CAR_PART_IDS, MONSTER_CAR_SLOTS } from '@party/protocol';
@@ -11,6 +11,10 @@ import type { GamePanelProps } from '../gamePanelTypes';
 import { MonsterCarCanvas } from './MonsterCarCanvas';
 import { PartThumbnail } from './PartThumbnail';
 import { Soundscape } from './rendering/Soundscape';
+import { surpriseCarBuild } from './garage';
+import { createCarIdentity } from './rendering/presentation/CarIdentity';
+import { createMonsterCarShowPlan } from './rendering/presentation/ShowPlan';
+import { sampleSocialMoment } from './rendering/presentation/SocialMoments';
 
 const SLOT_LABELS: Record<MonsterCarSlot, { label: string; emoji: string }> = {
   wheels: { label: '轮子', emoji: '🛞' },
@@ -25,6 +29,7 @@ const FALLBACK_BUILD: MonsterCarBuild = {
 };
 
 const ENVIRONMENT_EMOJI = { puddle: '💦', log: '🪵', gust: '🍃', hill: '⛰️' } as const;
+const PART_PAGE_SIZE = 4;
 
 export function MonsterCarPanel({ room, playerId, onAction, pending, serverClockOffsetMs = 0 }: GamePanelProps) {
   const game = room.game as MonsterCarView;
@@ -35,6 +40,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
   const serverBuildSignature = JSON.stringify(serverBuild);
   const [draft, setDraft] = useState<MonsterCarBuild>(() => ({ ...serverBuild }));
   const [activeSlot, setActiveSlot] = useState<MonsterCarSlot>('wheels');
+  const [partPage, setPartPage] = useState(0);
   const [frame, setFrame] = useState<MonsterCarRaceFrame | null>(null);
   const [now, setNow] = useState(Date.now());
   const [webglFailed, setWebglFailed] = useState(false);
@@ -45,8 +51,34 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
   const lastCueRef = useRef('');
   const celebratedRaceRef = useRef('');
   const resultsTimerRef = useRef<number | null>(null);
+  const pendingPartFocusRef = useRef<string | null>(null);
   const onFrame = useCallback((next: MonsterCarRaceFrame) => setFrame(next), []);
   const onRenderFailure = useCallback(() => setWebglFailed(true), []);
+  const previewPlayerId = isParticipant ? playerId : game.participantIds[0] ?? playerId;
+  const previewPlayerIndex = Math.max(0, game.participantIds.indexOf(previewPlayerId));
+  const previewAvatar = playerAvatarOf(room.players, previewPlayerId);
+  const garageIdentity = useMemo(
+    () => createCarIdentity(previewPlayerId, previewPlayerIndex, previewAvatar),
+    [previewAvatar, previewPlayerId, previewPlayerIndex],
+  );
+  const showPlan = useMemo(
+    () => game.plan ? createMonsterCarShowPlan(game.plan, room.players.map((player) => ({ id: player.id, avatar: player.avatar }))) : null,
+    [game.plan, room.players],
+  );
+  const activePartId = draft[activeSlot];
+
+  useEffect(() => {
+    const selectedIndex = (MONSTER_CAR_PART_IDS[activeSlot] as readonly string[]).indexOf(activePartId);
+    setPartPage(Math.max(0, Math.floor(selectedIndex / PART_PAGE_SIZE)));
+  }, [activePartId, activeSlot]);
+
+  useEffect(() => {
+    const pending = pendingPartFocusRef.current;
+    if (!pending) return;
+    const target = document.getElementById(`mc-part-${activeSlot}-${pending}`);
+    target?.focus();
+    pendingPartFocusRef.current = null;
+  }, [activePartId, activeSlot, partPage]);
 
   useEffect(() => {
     if (game.phase !== 'building') return;
@@ -84,6 +116,9 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
 
   const ownFrame = frame?.cars.find((car) => car.playerId === playerId) ?? null;
   const ownCue = ownFrame?.activeCue ?? null;
+  const socialMoment = game.phase === 'racing' && showPlan && frame
+    ? sampleSocialMoment(showPlan, frame.atMs)
+    : null;
   useEffect(() => {
     if (!ownCue || !game.plan) return;
     const key = `${game.plan.id}:${ownCue.eventId}`;
@@ -104,7 +139,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
     if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
     resultsTimerRef.current = window.setTimeout(() => {
       resultsTimerRef.current = null;
-      setResultsOpen(false);
+      closeResults();
     }, 5_000);
     return () => {
       if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
@@ -115,7 +150,12 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
   const closeResults = () => {
     if (resultsTimerRef.current !== null) window.clearTimeout(resultsTimerRef.current);
     resultsTimerRef.current = null;
+    const card = document.getElementById('mc-results-card');
+    const shouldMoveFocus = card?.contains(document.activeElement) ?? false;
     setResultsOpen(false);
+    if (shouldMoveFocus) {
+      requestAnimationFrame(() => document.getElementById('mc-show-results')?.focus());
+    }
   };
 
   const revealResults = () => {
@@ -153,9 +193,8 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
       : (current + delta + parts.length) % parts.length;
     const nextPart = parts[next]!;
     selectPart(nextPart);
-    const target = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next];
-    target?.focus();
-    target?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    pendingPartFocusRef.current = nextPart;
+    setPartPage(Math.floor(next / PART_PAGE_SIZE));
   };
 
   const submit = () => {
@@ -179,12 +218,16 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
   const countdown = game.raceStartsAt === null ? 3 : Math.min(3, Math.max(1, Math.ceil((game.raceStartsAt - now) / 1_000)));
   const secondsLeft = Math.max(0, Math.ceil((RACE_DURATION_MS - (frame?.atMs ?? 0)) / 1_000));
   const ownReady = game.readyPlayerIds.includes(playerId);
+  const partIds: readonly string[] = MONSTER_CAR_PART_IDS[activeSlot];
+  const partPageCount = Math.ceil(partIds.length / PART_PAGE_SIZE);
+  const visiblePartIds = partIds.slice(partPage * PART_PAGE_SIZE, (partPage + 1) * PART_PAGE_SIZE);
+  const photoMode = game.phase === 'finished' && !resultsOpen;
 
   return (
     <main className={`mc-shell mc-phase-${game.phase}`} ref={shellRef}>
       <header className="mc-topbar">
         <Brand compact />
-        <div className="mc-event-name"><span>FOREST MOTOR CLUB</span><strong>萤火森林 → 云朵大操场</strong></div>
+        <div className="mc-event-name"><span>FOREST MOTOR CLUB</span><strong>{showPlan?.story.title ?? '萤火森林'} → 云朵大操场</strong></div>
         <div className="mc-top-actions">
           <button className="mc-icon-button" type="button" onClick={toggleSound} aria-label={muted ? '打开声音' : '静音'}>
             {muted ? <VolumeX size={19} /> : <Volume2 size={19} />}
@@ -203,7 +246,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
 
           <div className="mc-preview-frame">
             {!webglFailed ? (
-              <MonsterCarCanvas game={game} previewBuild={draft} paint={paint} clockOffsetMs={serverClockOffsetMs} onFrame={onFrame} onFailure={onRenderFailure} />
+              <MonsterCarCanvas game={game} previewBuild={draft} paint={paint} clockOffsetMs={serverClockOffsetMs} identity={garageIdentity} avatar={previewAvatar} isOwn={isParticipant} viewerId={playerId} showPlan={showPlan} photoMode={photoMode} onFrame={onFrame} onFailure={onRenderFailure} />
             ) : (
               <div className="mc-dom-car" aria-label="你的汽车预览">
                 <span>{MONSTER_CAR_PART_CATALOG.roof[draft.roof]?.emoji}</span>
@@ -220,6 +263,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
                 </span>
               ))}
             </div>
+            <div className="mc-drag-hint">↔ 拖动车车转一转</div>
           </div>
 
           {isParticipant ? (
@@ -245,12 +289,13 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
               </div>
               <div className="mc-part-panel" role="tabpanel" id="mc-part-panel" aria-labelledby={`mc-tab-${activeSlot}`}>
                 <div className="mc-part-options" role="radiogroup" aria-label={`选择${SLOT_LABELS[activeSlot].label}`}>
-                {MONSTER_CAR_PART_IDS[activeSlot].map((partId) => {
+                {visiblePartIds.map((partId) => {
                   const part = MONSTER_CAR_PART_CATALOG[activeSlot][partId];
                   if (!part) return null;
                   const selected = draft[activeSlot] === partId;
+                  const isTabStop = selected || (!visiblePartIds.includes(activePartId) && visiblePartIds[0] === partId);
                   return (
-                    <button key={partId} type="button" role="radio" aria-checked={selected} tabIndex={selected ? 0 : -1} className={selected ? 'is-selected' : ''} onClick={() => selectPart(partId)} onKeyDown={(event) => navigateParts(event, partId)}>
+                    <button id={`mc-part-${activeSlot}-${partId}`} key={partId} type="button" role="radio" aria-checked={selected} tabIndex={isTabStop ? 0 : -1} className={selected ? 'is-selected' : ''} onClick={() => selectPart(partId)} onKeyDown={(event) => navigateParts(event, partId)}>
                       <PartThumbnail slot={activeSlot} partId={partId} fallbackEmoji={part.emoji} enabled={!webglFailed} />
                       <strong>{part.label}</strong>
                       {selected && <span className="mc-selected-dot"><Check size={12} /></span>}
@@ -259,17 +304,25 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
                 })}
                 </div>
               </div>
-              <button className="mc-go-button" type="button" onClick={submit} disabled={pending} aria-label={ownReady ? '改装完成，再确认一次，出发' : '我的车好了！出发'}>
-                <span>{ownReady ? '改装完成，再确认一次' : '我的车好了！'}</span><strong>出发</strong><span className="mc-go-arrow">→</span>
-              </button>
+              <div className="mc-part-pager" aria-label="零件翻页">
+                <button type="button" aria-label="上一页零件" disabled={partPage === 0} onClick={() => setPartPage((page) => Math.max(0, page - 1))}>←</button>
+                <span>{partPage + 1} / {partPageCount}</span>
+                <button type="button" aria-label="下一页零件" disabled={partPage >= partPageCount - 1} onClick={() => setPartPage((page) => Math.min(partPageCount - 1, page + 1))}>→</button>
+              </div>
+              <div className="mc-departure-actions">
+                <button className="mc-surprise-button" type="button" onClick={() => setDraft((current) => surpriseCarBuild(current))}><span>🎲</span><strong>惊喜一下</strong></button>
+                <button className="mc-go-button" type="button" onClick={submit} disabled={pending} aria-label={ownReady ? '改装完成，再确认一次，出发' : '我的车好了！出发'}>
+                  <span>{ownReady ? '改装完成，再确认一次' : '我的车好了！'}</span><strong>出发</strong><span className="mc-go-arrow">→</span>
+                </button>
+              </div>
               <p className="mc-waiting-copy">{ownReady ? '还可以继续换零件；朋友都准备好，就一起出发。' : '不用赶时间，每一辆车都可以很特别。'}</p>
             </div>
           ) : <p className="mc-spectator-copy">你正在观战。坐好，看看大家造出了什么车！</p>}
         </section>
       ) : (
-        <section className="mc-journey-stage">
+        <section className={`mc-journey-stage ${game.phase === 'finished' && !resultsOpen ? 'is-photo' : ''}`}>
           {!webglFailed ? (
-            <MonsterCarCanvas game={game} previewBuild={draft} paint={paint} clockOffsetMs={serverClockOffsetMs} onFrame={onFrame} onFailure={onRenderFailure} />
+            <MonsterCarCanvas game={game} previewBuild={draft} paint={paint} clockOffsetMs={serverClockOffsetMs} identity={garageIdentity} avatar={previewAvatar} isOwn={isParticipant} viewerId={playerId} showPlan={showPlan} photoMode={photoMode} onFrame={onFrame} onFailure={onRenderFailure} />
           ) : (
             <div className="mc-dom-journey"><span>🌲</span><span>🌳</span><strong>🚙</strong><span>🌲</span><span>🎡</span></div>
           )}
@@ -305,10 +358,14 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
             </div>
           )}
 
-          {game.phase === 'racing' && !ownCue && <div className="mc-road-caption">看！我的车正在穿过萤火森林</div>}
+          {game.phase === 'racing' && socialMoment && !ownCue && (
+            <div className="mc-social-card" role="status"><span>👋</span><strong>{socialMoment.caption}</strong></div>
+          )}
+
+          {game.phase === 'racing' && !ownCue && !socialMoment && <div className="mc-road-caption">看！我的车正在穿过萤火森林</div>}
 
           {game.phase === 'finished' && resultsOpen && (
-            <section className="mc-results-card" aria-labelledby="mc-results-title">
+            <section id="mc-results-card" className="mc-results-card" aria-labelledby="mc-results-title">
               <span className="mc-kicker"><Sparkles size={14} />CLOUD PLAYGROUND</span>
               <h1 id="mc-results-title">抵达云朵大操场！</h1>
               <p>名次完全随机，每辆车都有自己的森林高光。</p>
@@ -323,7 +380,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
                 ))}
               </div>
               <div className="mc-results-actions">
-                <button className="mc-continue-button" type="button" onClick={closeResults}>看车车和礼花</button>
+                <button className="mc-continue-button" type="button" aria-expanded="true" aria-controls="mc-results-card" onClick={closeResults}>看车车和礼花</button>
                 {isOwner ? (
                   <button className="mc-again-button" type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}><RotateCcw size={18} />再造一辆，重新出发</button>
                 ) : <p className="mc-waiting-owner">等房主再开一场森林旅行</p>}
@@ -333,7 +390,7 @@ export function MonsterCarPanel({ room, playerId, onAction, pending, serverClock
           {game.phase === 'finished' && !resultsOpen && (
             <div className="mc-celebration-dock">
               <span><Sparkles size={16} />欢乐车阵 · 礼花庆典</span>
-              <button type="button" onClick={revealResults}>查看名次</button>
+              <button id="mc-show-results" type="button" aria-expanded="false" aria-controls="mc-results-card" onClick={revealResults}>查看名次</button>
               {isOwner && <button type="button" disabled={pending} onClick={() => onAction({ type: 'play-again' })}>再玩一场</button>}
             </div>
           )}

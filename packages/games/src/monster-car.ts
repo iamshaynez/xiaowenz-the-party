@@ -119,12 +119,15 @@ function act(state: MonsterCarState, context: GameActionContext) {
     case 'play-again': {
       if (!context.isOwner) throw new DomainError('OWNER_ONLY', '只有房主可以再开一局');
       if (state.phase !== 'finished') throw new DomainError('INVALID_PHASE', '森林旅行还没有结束');
+      const builds = Object.fromEntries(
+        state.participantIds.map((playerId) => [playerId, { ...state.builds[playerId]! }]),
+      );
       Object.assign(state, create({
         playerIds: state.participantIds,
         rounds: 1,
         now: context.now,
         rng: context.rng,
-      }));
+      }), { builds });
       return;
     }
     default:

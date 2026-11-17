@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MonsterCarRacePlan } from '@party/games';
 import { COURSE_LENGTH, sampleCourse } from './courseMath';
+import type { MonsterCarStory } from './presentation/ShowPlan';
 
 const SKY_DAY = ['#72b9c6', '#f7cfad', '#8ca87c'].map((color) => new THREE.Color(color));
 const SKY_TWILIGHT = ['#4c557c', '#a77f91', '#65776a'].map((color) => new THREE.Color(color));
@@ -52,17 +53,26 @@ export class CourseVisual {
   readonly group = new THREE.Group();
   private readonly waterMaterials: THREE.ShaderMaterial[] = [];
   private skyMaterial: THREE.ShaderMaterial | null = null;
+  private dayColors = SKY_DAY;
+  private twilightColors = SKY_TWILIGHT;
+  private storyPropVariant = 0;
   private readonly clouds: THREE.Group[] = [];
   private readonly cloudOrigins: number[] = [];
   private readonly winds: THREE.Group[] = [];
   private readonly ferrisWheel = new THREE.Group();
 
-  constructor(plan: MonsterCarRacePlan, detailed = true) {
+  constructor(plan: MonsterCarRacePlan, detailed = true, story?: MonsterCarStory) {
+    if (story) {
+      this.dayColors = story.dayColors.map((color) => new THREE.Color(color));
+      this.twilightColors = story.twilightColors.map((color) => new THREE.Color(color));
+      this.storyPropVariant = story.propVariant;
+    }
     this.createSky();
     this.createMountains();
     this.createTerrain();
     this.createForest(detailed ? 150 : 90);
     this.createFlowers(detailed ? 240 : 120);
+    this.createStoryProps();
     this.createRiver();
     this.createClouds();
     this.createLightShafts();
@@ -75,9 +85,9 @@ export class CourseVisual {
       side: THREE.BackSide,
       depthWrite: false,
       uniforms: {
-        topColor: { value: new THREE.Color('#72b9c6') },
-        middleColor: { value: new THREE.Color('#f7cfad') },
-        bottomColor: { value: new THREE.Color('#8ca87c') },
+        topColor: { value: new THREE.Color(this.dayColors[0]!) },
+        middleColor: { value: new THREE.Color(this.dayColors[1]!) },
+        bottomColor: { value: new THREE.Color(this.dayColors[2]!) },
       },
       vertexShader: 'varying vec3 vWorld; void main(){ vec4 world = modelMatrix * vec4(position,1.0); vWorld = world.xyz; gl_Position = projectionMatrix * viewMatrix * world; }',
       fragmentShader: 'varying vec3 vWorld; uniform vec3 topColor; uniform vec3 middleColor; uniform vec3 bottomColor; void main(){ float h=normalize(vWorld).y; vec3 c=mix(bottomColor,middleColor,smoothstep(-0.12,0.12,h)); c=mix(c,topColor,smoothstep(0.05,0.65,h)); gl_FragColor=vec4(c,1.0); }',
@@ -230,6 +240,39 @@ export class CourseVisual {
     this.group.add(stems, blossoms);
   }
 
+  private createStoryProps() {
+    const count = 24;
+    const geometry = this.storyPropVariant === 0
+      ? new THREE.IcosahedronGeometry(0.16, 0)
+      : this.storyPropVariant === 1
+        ? new THREE.DodecahedronGeometry(0.17, 0)
+        : new THREE.OctahedronGeometry(0.18, 0);
+    const props = new THREE.InstancedMesh(
+      geometry,
+      new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.65 }),
+      count,
+    );
+    const transform = new THREE.Object3D();
+    const color = new THREE.Color();
+    const palette = this.storyPropVariant === 0 ? ['#ffe99a', '#d7eaa0', '#f4c7a1']
+      : this.storyPropVariant === 1 ? ['#c78d55', '#e2b76d', '#8e7654']
+        : ['#f2a9b5', '#e8c2ed', '#f5df8b'];
+    for (let index = 0; index < count; index += 1) {
+      const progress = (index + 0.5) / count;
+      const point = sampleCourse(progress);
+      const side = index % 2 === 0 ? -1 : 1;
+      const scale = 0.75 + (index % 4) * 0.16;
+      transform.position.set(point.x, point.y + 0.25, point.z + side * (4.2 + (index % 3) * 0.35));
+      transform.rotation.set(index * 0.3, index * 0.5, index * 0.2);
+      transform.scale.set(scale, scale * (1 + this.storyPropVariant * 0.12), scale);
+      transform.updateMatrix();
+      props.setMatrixAt(index, transform.matrix);
+      props.setColorAt(index, color.set(palette[index % palette.length]!));
+    }
+    props.castShadow = false;
+    this.group.add(props);
+  }
+
   private createRiver() {
     const material = new THREE.ShaderMaterial({
       transparent: true,
@@ -281,6 +324,7 @@ export class CourseVisual {
     const group = new THREE.Group();
     group.position.set(point.x, point.y + 0.05, point.z);
     group.rotation.y = point.yaw;
+    group.scale.set(1 + variant * 0.04, 1, 1 + variant * 0.06);
     if (kind === 'puddle') {
       const material = new THREE.MeshPhysicalMaterial({ color: '#72bfd0', roughness: 0.18, metalness: 0.05, transparent: true, opacity: 0.82 });
       const water = mesh(new THREE.CircleGeometry(2.25, 40), material);
@@ -423,7 +467,7 @@ export class CourseVisual {
     if (this.skyMaterial) {
       const colors = ['topColor', 'middleColor', 'bottomColor'] as const;
       colors.forEach((name, index) => {
-        this.skyMaterial?.uniforms[name]?.value.lerpColors(SKY_DAY[index]!, SKY_TWILIGHT[index]!, easedTwilight);
+        this.skyMaterial?.uniforms[name]?.value.lerpColors(this.dayColors[index]!, this.twilightColors[index]!, easedTwilight);
       });
     }
     for (const material of this.waterMaterials) material.uniforms.time!.value = reducedMotion ? 0 : timeSeconds % 3_600;
