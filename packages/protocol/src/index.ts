@@ -43,6 +43,7 @@ export const joinRoomRequestSchema = createRoomRequestSchema.extend({
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('authenticate'), sessionId: z.string().min(10).max(100), resumeToken: z.string().min(20).max(200) }).strict(),
   z.object({ type: z.literal('start-game'), actionId: actionIdSchema, gameId: z.enum(GAME_IDS), rounds: z.number().int().min(1).max(8) }).strict(),
+  z.object({ type: z.literal('end-game'), actionId: actionIdSchema }).strict(),
   z.object({ type: z.literal('game-action'), actionId: actionIdSchema, action: gameActionSchema }).strict(),
   z.object({ type: z.literal('leave-room'), actionId: actionIdSchema }).strict(),
   z.object({ type: z.literal('ping') }).strict(),

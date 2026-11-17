@@ -46,7 +46,7 @@ export function RoomPage({ services }: { services: PartyServices }) {
       <ConnectionNotice reconnecting={party.status === 'reconnecting'} />
       {party.error && <div className="toast" role="alert">{party.error}</div>}
       {party.room.game ? (
-        <GamePanel room={party.room} playerId={party.playerId} onAction={party.act} pending={party.pending} serverClockOffsetMs={party.serverClockOffsetMs} />
+        <GamePanel room={party.room} playerId={party.playerId} onAction={party.act} onEndGame={party.endGame} pending={party.pending} serverClockOffsetMs={party.serverClockOffsetMs} />
       ) : (
         <Lobby room={party.room} playerId={party.playerId} onStart={party.start} onLeave={() => { party.leave(); navigate('/'); }} pending={party.pending} />
       )}

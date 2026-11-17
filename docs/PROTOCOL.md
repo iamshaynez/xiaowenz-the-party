@@ -56,6 +56,14 @@
 { "type": "start-game", "actionId": "web-uuid", "gameId": "most-likely", "rounds": 3 }
 ```
 
+结束本局回大厅（仅房主，且房间处于 `finished`；沿用通用 `actionId` 幂等）：
+
+```json
+{ "type": "end-game", "actionId": "web-uuid" }
+```
+
+成功后房间 `phase` 回到 `lobby`、`game` 清空，对局中加入的旁观者全部转回参与者，房主可换游戏重新 `start-game`。在 `lobby` 或 `playing` 阶段调用返回 `INVALID_PHASE`，非房主返回 `OWNER_ONLY`。与 `play-again` 不同，`end-game` 不保留「怪兽汽车」的 build：回大厅后重开是全新一局。
+
 游戏动作按当前游戏校验。「谁最可能」：
 
 ```json

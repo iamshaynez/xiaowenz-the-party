@@ -179,6 +179,53 @@ test('三位真实玩家完成一局存钱罐，随机事件与随机落幕下�
   }
 });
 
+test('结算后房主换个游戏，全员回到大厅并开新游戏', async ({ browser }, testInfo) => {
+  const owner = await newPlayer(browser, false);
+  const second = await newPlayer(browser);
+  const third = await newPlayer(browser);
+  const errors: string[] = [];
+  for (const player of [owner, second, third]) {
+    player.page.on('pageerror', (error) => errors.push(error.message));
+  }
+
+  try {
+    await owner.page.goto('/');
+    await owner.page.getByRole('button', { name: '创建派对' }).click();
+    await owner.page.getByLabel('你的昵称').fill('房主小文');
+    await owner.page.getByRole('button', { name: '创建并进入房间' }).click();
+    await expect(owner.page.getByRole('heading', { name: '人都到齐了吗？' })).toBeVisible();
+    const code = (await owner.page.locator('.room-code__value').textContent())!;
+    await join(second.page, code, '阿熊');
+    await join(third.page, code, '蛙蛙');
+
+    await owner.page.getByRole('radio', { name: /谁最可能/ }).click();
+    await owner.page.getByRole('button', { name: '开始游戏' }).click();
+    for (let round = 1; round <= 3; round += 1) {
+      await finishRound({ owner: owner.page, second: second.page, third: third.page }, '阿熊', '房主小文');
+      await owner.page.getByRole('button', { name: round === 3 ? '查看最终结果' : '下一轮' }).click();
+    }
+    for (const page of [owner.page, second.page, third.page]) {
+      await expect(page.getByRole('heading', { name: '今晚的气氛担当' })).toBeVisible();
+    }
+
+    await owner.page.getByRole('button', { name: '换个游戏' }).click();
+    for (const page of [owner.page, second.page, third.page]) {
+      await expect(page.getByRole('heading', { name: '人都到齐了吗？' })).toBeVisible();
+    }
+    await expect(third.page.getByRole('button', { name: '开始游戏' })).toHaveCount(0);
+
+    await owner.page.getByRole('radio', { name: /存钱罐/ }).click();
+    await owner.page.getByRole('button', { name: '开始游戏' }).click();
+    for (const page of [owner.page, second.page, third.page]) {
+      await expect(page.getByText('守罐还是发财？')).toBeVisible();
+    }
+    expect(errors).toEqual([]);
+    await testInfo.attach('room-code', { body: code, contentType: 'text/plain' });
+  } finally {
+    await Promise.all([owner.context.close(), second.context.close(), third.context.close()]);
+  }
+});
+
 test('手机加入页处理未知房间和非法昵称，不发生白屏', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/r/ZZZZZZ');

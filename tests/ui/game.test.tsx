@@ -33,7 +33,7 @@ describe('谁最可能：手机投票与揭晓', () => {
   it('玩家只能投其他参与者，点击后提交明确的游戏动作', async () => {
     const user = userEvent.setup();
     const onAction = vi.fn();
-    render(<GamePanel room={roomWith(votingGame)} playerId="owner" onAction={onAction} pending={false} />);
+    render(<GamePanel room={roomWith(votingGame)} playerId="owner" onAction={onAction} onEndGame={vi.fn()} pending={false} />);
 
     expect(screen.getByRole('heading', { name: votingGame.prompt })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '投给 小文' })).not.toBeInTheDocument();
@@ -42,7 +42,7 @@ describe('谁最可能：手机投票与揭晓', () => {
   });
 
   it('其他玩家已提交只显示完成状态，不泄露投给了谁', () => {
-    render(<GamePanel room={roomWith({ ...votingGame, submittedPlayerIds: ['p2'] })} playerId="owner" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith({ ...votingGame, submittedPlayerIds: ['p2'] })} playerId="owner" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
     expect(screen.getByText('1 / 3 已投票')).toBeInTheDocument();
     expect(screen.queryByText(/第二位.*小文/)).not.toBeInTheDocument();
   });
@@ -61,7 +61,7 @@ describe('谁最可能：手机投票与揭晓', () => {
       },
       scores: { owner: 0, p2: 1, p3: 0 },
     };
-    render(<GamePanel room={roomWith(game)} playerId="owner" onAction={onAction} pending={false} />);
+    render(<GamePanel room={roomWith(game)} playerId="owner" onAction={onAction} onEndGame={vi.fn()} pending={false} />);
 
     expect(screen.getByText('全场焦点')).toBeInTheDocument();
     expect(screen.getAllByText('第二位').length).toBeGreaterThan(0);
@@ -78,8 +78,35 @@ describe('谁最可能：手机投票与揭晓', () => {
       scores: { owner: 1, p2: 2, p3: 0 },
       winners: ['p2'],
     };
-    render(<GamePanel room={roomWith(game)} playerId="p3" onAction={vi.fn()} pending={false} />);
+    render(<GamePanel room={roomWith(game)} playerId="p3" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
     expect(screen.getByText('今晚的气氛担当')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '再来一局' })).not.toBeInTheDocument();
+  });
+
+  it('结算页房主可以换个游戏回大厅', async () => {
+    const user = userEvent.setup();
+    const onEndGame = vi.fn();
+    const game: MostLikelyView = {
+      ...votingGame,
+      phase: 'finished',
+      deadlineAt: null,
+      scores: { owner: 1, p2: 2, p3: 0 },
+      winners: ['p2'],
+    };
+    render(<GamePanel room={roomWith(game)} playerId="owner" onAction={vi.fn()} onEndGame={onEndGame} pending={false} />);
+    await user.click(screen.getByRole('button', { name: '换个游戏' }));
+    expect(onEndGame).toHaveBeenCalledTimes(1);
+  });
+
+  it('非房主在结算页看不到「换个游戏」入口', () => {
+    const game: MostLikelyView = {
+      ...votingGame,
+      phase: 'finished',
+      deadlineAt: null,
+      scores: { owner: 1, p2: 2, p3: 0 },
+      winners: ['p2'],
+    };
+    render(<GamePanel room={roomWith(game)} playerId="p3" onAction={vi.fn()} onEndGame={vi.fn()} pending={false} />);
+    expect(screen.queryByRole('button', { name: '换个游戏' })).not.toBeInTheDocument();
   });
 });

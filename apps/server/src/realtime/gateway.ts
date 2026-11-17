@@ -155,6 +155,12 @@ export class RealtimeGateway {
           if (outcome.changed) this.broadcast(connection.session.roomCode);
           return;
         }
+        case 'end-game': {
+          const outcome = this.rooms.endGame(connection.session, message.actionId);
+          this.send(socket, { type: 'action-ack', actionId: message.actionId, version: outcome.version });
+          if (outcome.changed) this.broadcast(connection.session.roomCode);
+          return;
+        }
         case 'game-action': {
           const outcome = this.rooms.act(connection.session, message.actionId, message.action);
           this.send(socket, { type: 'action-ack', actionId: message.actionId, version: outcome.version });

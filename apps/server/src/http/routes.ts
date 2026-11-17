@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { AVATARS, createRoomRequestSchema, joinRoomRequestSchema } from '@party/protocol';
+import { toGameInfo } from '@party/game-core';
 import { gameRegistry } from '@party/games';
 import { DomainError } from '@party/room';
 import { RoomService } from '../rooms/room-service';
@@ -19,17 +20,7 @@ export function registerHttpRoutes(app: FastifyInstance, rooms: RoomService, gat
 
   app.get('/api/config', async () => ({
     avatars: AVATARS,
-    games: [...gameRegistry.values()].map((game) => ({
-      id: game.id,
-      version: game.version,
-      name: game.name,
-      emoji: game.emoji,
-      description: game.description,
-      tags: game.tags,
-      roundsOptions: game.roundsOptions,
-      minPlayers: game.minPlayers,
-      maxPlayers: game.maxPlayers,
-    })),
+    games: [...gameRegistry.values()].map((game) => ({ version: game.version, ...toGameInfo(game) })),
   }));
 
   app.post('/api/rooms', async (request, reply) => {
