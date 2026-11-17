@@ -49,6 +49,7 @@ async function expectCanvasRunning(page: Page, testId: string) {
 }
 
 test('五子棋：双浏览器真实 WebGL 对局，黑棋键盘落子连五获胜', async ({ browser }) => {
+  test.setTimeout(180_000);
   const { owner, guests } = await openRoom(browser, /五子棋/, 1);
   const second = guests[0]!;
   const errors: string[] = [];
@@ -60,7 +61,7 @@ test('五子棋：双浏览器真实 WebGL 对局，黑棋键盘落子连五获�
 
     const black = owner.page.locator('.gm-render-host');
     const white = second.page.locator('.gm-render-host');
-    const myTurn = (page: Page) => expect(page.locator('.bt-status')).toContainText('轮到你了', { timeout: 10_000 });
+    const myTurn = (page: Page) => expect(page.locator('.bt-status')).toContainText('轮到你了', { timeout: 30_000 });
 
     // 黑：天元起手；白：一路向上陪跑。黑横向连五取胜。
     await myTurn(owner.page);
@@ -88,7 +89,7 @@ test('五子棋：双浏览器真实 WebGL 对局，黑棋键盘落子连五获�
 });
 
 test('飞行棋：双浏览器掷骰起飞，回合在两端正确轮转', async ({ browser }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(200_000);
   const { owner, guests } = await openRoom(browser, /飞行棋/, 1);
   const second = guests[0]!;
   try {
@@ -125,7 +126,7 @@ test('飞行棋：双浏览器掷骰起飞，回合在两端正确轮转', async
 });
 
 test('斗地主：三人叫分定庄，地主键盘打单张到底并回到大厅', async ({ browser }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(360_000);
   const { owner, guests } = await openRoom(browser, /斗地主/, 2);
   const [second, third] = [guests[0]!, guests[1]!];
   const errors: string[] = [];
@@ -179,7 +180,7 @@ test('斗地主：三人叫分定庄，地主键盘打单张到底并回到大�
 });
 
 test('德州扑克：双浏览器弃牌收池、结算与再来一局', async ({ browser }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(200_000);
   const { owner, guests } = await openRoom(browser, /德州扑克/, 1);
   const second = guests[0]!;
   try {

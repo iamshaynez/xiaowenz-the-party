@@ -216,6 +216,14 @@ export class TabletopRenderer {
     this.renderer.shadowMap.enabled = detailed;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, detailed ? 1.75 : 1.5));
+    // 软件渲染（SwiftShader/llvmpipe，常见于 CI 与无独显设备）下关闭阴影并降到 1x，保住可玩的帧率。
+    const gl = this.renderer.getContext();
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    const rendererName = debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)) : '';
+    if (/swiftshader|llvmpipe|software|basic render/i.test(rendererName)) {
+      this.renderer.setPixelRatio(1);
+      this.renderer.shadowMap.enabled = false;
+    }
     this.renderer.domElement.className = 'bt-canvas';
     this.renderer.domElement.dataset.testid = testId;
     this.renderer.domElement.dataset.renderEngine = 'three.js';
