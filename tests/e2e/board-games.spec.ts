@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 
-// 棋牌室 E2E：四款桌面游戏在真实 Chromium + WebGL 下完整走通。
+// 棋牌室 E2E：桌面游戏在真实 Chromium 下完整走通；五子棋/斗地主/德州扑克走 WebGL，飞行棋走 2D SVG。
 // 只断言稳定阶段（回合归属、终局名次、持久按钮），不绑定瞬时动画文案。
 
 async function newPlayer(browser: Browser, mobile = true) {
@@ -112,7 +112,13 @@ test('飞行棋：双浏览器掷骰起飞，回合在两端正确轮转', async
   const { owner, guests } = await openRoom(browser, /飞行棋/, 1);
   const second = guests[0]!;
   try {
-    for (const page of [owner.page, second.page]) await expectCanvasRunning(page, 'ludo-canvas');
+    // 2D SVG 棋盘（无 WebGL 依赖）：环道 52 格与四家机场真实可见。
+    for (const page of [owner.page, second.page]) {
+      const board = page.getByRole('img', { name: '飞行棋棋盘' });
+      await expect(board).toBeVisible({ timeout: 15_000 });
+      await expect(board.locator('[data-testid="ld-ring-cell"]')).toHaveCount(52);
+      await expect(board.locator('[data-testid^="ld-hangar-"]')).toHaveCount(4);
+    }
     await owner.page.screenshot({ path: 'artifacts/ludo-board.png', animations: 'disabled' });
 
     // 掷骰 → 移动（或自动轮空）；掷出 6 会追加一掷，因此按「谁亮按钮谁行动」驱动。

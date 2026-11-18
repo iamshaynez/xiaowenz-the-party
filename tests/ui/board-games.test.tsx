@@ -14,12 +14,6 @@ vi.mock('../../apps/web/src/components/gomoku/GomokuCanvas', () => ({
     return <div data-testid="gomoku-canvas-stub" />;
   },
 }));
-vi.mock('../../apps/web/src/components/ludo/LudoCanvas', () => ({
-  LudoCanvas: (props: { onFailure: () => void }) => {
-    useEffect(() => { if (flags.failAll) props.onFailure(); }, []);
-    return <div data-testid="ludo-canvas-stub" />;
-  },
-}));
 vi.mock('../../apps/web/src/components/dou-dizhu/DouDizhuCanvas', () => ({
   DouDizhuCanvas: (props: { onFailure: () => void }) => {
     useEffect(() => { if (flags.failAll) props.onFailure(); }, []);
@@ -142,6 +136,16 @@ describe('飞行棋面板', () => {
     expect(onMove).toHaveBeenCalledWith({ type: 'move-plane', plane: 1 });
   });
 
+  it('2D SVG 棋盘直接渲染：52 格环道与可点击飞机', async () => {
+    const user = userEvent.setup();
+    const moving: LudoView = { ...playing, stage: 'move', dice: 6, movablePlanes: [0, 1, 2, 3], rollDeadlineAt: null, moveDeadlineAt: Date.now() + 45_000 };
+    const { onAction } = renderPanel(moving, 'owner');
+    const board = await screen.findByRole('img', { name: '飞行棋棋盘' });
+    expect(within(board).getAllByTestId('ld-ring-cell')).toHaveLength(52);
+    await user.click(within(board).getByRole('button', { name: /小文 3 号机/ }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'move-plane', plane: 2 });
+  });
+
   it('座位 0 玩家退出房间后，座位 1 玩家仍能按原座位掷骰', async () => {
     // 房主（座位 0）已离开房间：房间玩家列表只剩 p2，但游戏座位表保持开局顺序。
     const shifted: LudoView = { ...playing, seat: 1 };
@@ -150,24 +154,6 @@ describe('飞行棋面板', () => {
     const { onAction } = renderPanel(shifted, 'p2', remaining);
     await user.click(await screen.findByRole('button', { name: /掷骰子/ }));
     expect(onAction).toHaveBeenCalledWith({ type: 'roll-dice' });
-  });
-
-  it('文字降级模式下座位 1 玩家可点击自己的可动飞机', async () => {
-    flags.failAll = true;
-    try {
-      const user = userEvent.setup();
-      const moving: LudoView = { ...playing, seat: 1, stage: 'move', dice: 3, movablePlanes: [0], rollDeadlineAt: null, moveDeadlineAt: Date.now() + 45_000 };
-      const { onAction } = renderPanel(moving, 'p2');
-      const board = await screen.findByRole('group', { name: '飞行棋棋盘（文字模式）' });
-      const own = within(board).getByRole('button', { name: /阿棕 1 号机/ });
-      expect(own).toBeEnabled();
-      await user.click(own);
-      expect(onAction).toHaveBeenCalledWith({ type: 'move-plane', plane: 0 });
-      const other = within(board).getByRole('button', { name: /小文 1 号机/ });
-      expect(other).toBeDisabled();
-    } finally {
-      flags.failAll = false;
-    }
   });
 
   it('终局展示排名与再来一局（仅房主）', async () => {
