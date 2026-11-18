@@ -18,7 +18,7 @@ main（仅生产发布）
 1. 所有功能和修复开发都必须从最新 `dev` 创建 `feat/*` 或 `fix/*`；不得从 `main`、旧功能分支或其他集成分支拉开发分支。
 2. 功能、测试、文档和迁移在同一功能分支完成，一个分支只承载一项独立工作。
 3. `main` 和 `dev` 都是受保护分支，包括管理员在内都不得直接 push、强推或删除；代码只能通过 PR 合入。
-4. 两个受保护分支的必需审批人数均为 **0**，不强制其他审批人，但仍必须创建 PR 并等待 CI 完成。
+4. 两个受保护分支的必需审批人数均为 **0**，不强制其他审批人，但仍必须创建 PR 并等待 CI 完成。CI 只在 `pull_request` 触发（`check` 与按 spec 分片的 `e2e` 并行）；合入后的 push 不再重复验证，main 的部署由 `deploy-main.yml` 独立触发。
 5. 功能 PR 目标必须是 `dev`，合并前必须通过 `pnpm check:all`，使用 squash merge 保持 dev 历史清晰。
 6. 发布时从 `dev` 创建 `release/vX.Y.Z`，只接受文档、版本号和明确 release fix。
 7. Release 只通过 PR 合入 `main`，使用 merge commit 保留发布边界。
