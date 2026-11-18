@@ -12,7 +12,8 @@ export function LudoPanel({ room, playerId, onAction, onEndGame, pending, server
   const game = room.game as LudoView;
   const isOwner = room.ownerId === playerId;
   const players: LudoPlayerInfo[] = room.players.map((player) => ({ id: player.id, nickname: player.nickname, avatar: player.avatar }));
-  const mySeat = players.findIndex((player) => player.id === playerId);
+  // 座位以开局时的座位表为准：中途有人退出房间后 players 顺序会前移，不能用其索引。
+  const mySeat = game.seats.indexOf(playerId);
   const isMyTurn = game.seat !== null && game.seat === mySeat && game.phase === 'playing';
   const [webglFailed, setWebglFailed] = useState(false);
   const handleRenderFailure = useCallback(() => setWebglFailed(true), []);
@@ -26,7 +27,8 @@ export function LudoPanel({ room, playerId, onAction, onEndGame, pending, server
 
   const deadline = game.rollDeadlineAt ?? game.moveDeadlineAt;
   const secondsLeft = deadline !== null ? Math.max(0, Math.ceil((deadline - now) / 1_000)) : null;
-  const turnPlayer = game.seat !== null ? players[game.seat] : undefined;
+  const turnPlayerId = game.seat !== null ? game.seats[game.seat] : undefined;
+  const turnPlayer = turnPlayerId !== undefined ? players.find((player) => player.id === turnPlayerId) : undefined;
   const movablePlanes = game.movablePlanes;
 
   const rollDice = () => {
@@ -48,12 +50,13 @@ export function LudoPanel({ room, playerId, onAction, onEndGame, pending, server
       <header className="bt-topbar">
         <span className="bt-game-title"><Dices size={18} />飞行棋</span>
         <div className="ld-standings" aria-label="进度">
-          {players.map((player, seat) => {
-            const ranking = game.rankings.find((entry) => entry.playerId === player.id);
+          {game.seats.map((seatPlayerId, seat) => {
+            const player = players.find((entry) => entry.id === seatPlayerId);
+            const ranking = game.rankings.find((entry) => entry.playerId === seatPlayerId);
             return (
-              <span key={player.id} className={`${game.seat === seat ? 'is-turn' : ''} ${player.id === playerId ? 'is-own' : ''}`}>
+              <span key={seatPlayerId} className={`${game.seat === seat ? 'is-turn' : ''} ${seatPlayerId === playerId ? 'is-own' : ''}`}>
                 <i className="ld-seat-dot" style={{ background: LUDO_SEAT_COLORS[seat] }} />
-                {player.nickname} · {ranking?.planesHome ?? 0}/4
+                {player?.nickname ?? '已离座'} · {ranking?.planesHome ?? 0}/4
               </span>
             );
           })}
@@ -67,7 +70,8 @@ export function LudoPanel({ room, playerId, onAction, onEndGame, pending, server
           <div className="ld-dom-board" role="group" aria-label="飞行棋棋盘（文字模式）">
             {game.planes.map((plane) => {
               const id = plane.seat * 4 + plane.index;
-              const movable = movablePlanes.includes(id);
+              // movablePlanes 是「我的第 N 架」相对编号，只对我自己的飞机生效。
+              const movable = plane.seat === mySeat && movablePlanes.includes(plane.index);
               return (
                 <button
                   key={id}
@@ -77,7 +81,7 @@ export function LudoPanel({ room, playerId, onAction, onEndGame, pending, server
                   onClick={() => movePlane(plane.index)}
                 >
                   <i className="ld-seat-dot" style={{ background: LUDO_SEAT_COLORS[plane.seat] }} />
-                  {players[plane.seat]?.nickname ?? '?'} {plane.index + 1} 号机 · {plane.p === -1 ? '停机坪' : plane.p === 56 ? '已到家' : `前进 ${plane.p}`}
+                  {players.find((entry) => entry.id === game.seats[plane.seat])?.nickname ?? '已离座'} {plane.index + 1} 号机 · {plane.p === -1 ? '停机坪' : plane.p === 56 ? '已到家' : `前进 ${plane.p}`}
                 </button>
               );
             })}

@@ -143,6 +143,25 @@ describe('飞行棋 · 网络对局', () => {
       expect(after.seat).not.toBeNull();
     }
   });
+
+  it('玩家中途退出后座位表保持开局顺序，剩余玩家按原座位行动', async () => {
+    const owner = await createRoom();
+    const second = await joinRoom(owner.roomCode, '副驾', '🐯');
+    const third = await joinRoom(owner.roomCode, '导航员', '🐸');
+    const a = await connect(owner);
+    const b = await connect(second);
+    await connect(third);
+    await startGame(a, 'ludo', 1, 'ld-net-start-2');
+    const view = await awaitGame<LudoView>(b, (game) => game.id === 'ludo' && game.seats.length === 3);
+    expect(view.seats).toEqual([owner.playerId, second.playerId, third.playerId]);
+
+    // 座位 0（房主）中途退出房间：房间玩家列表前移，但游戏座位表保持开局顺序。
+    a.send({ type: 'leave-room', actionId: 'ld-leave-1' });
+    const afterLeave = await awaitGame<LudoView>(b, (game) => game.id === 'ludo' && game.seats.length === 3);
+    expect(afterLeave.seats).toEqual([owner.playerId, second.playerId, third.playerId]);
+    // 座位 1 的玩家不能抢占已离开座位的回合。
+    await act(b, 'ld-act-bad-1', { type: 'roll-dice' }, 'NOT_YOUR_TURN');
+  });
 });
 
 describe('斗地主 · 私密手牌与网络流程', () => {

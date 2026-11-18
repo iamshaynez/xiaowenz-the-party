@@ -29,6 +29,8 @@ export interface LudoView {
   dice: number | null;
   movablePlanes: number[];
   planes: LudoPlaneState[];
+  /** 按座位顺序的开局玩家表；玩家中途退出房间也不会改变，前端据此对齐座位。 */
+  seats: string[];
   sixStreak: number;
   lastRoll: { seat: number; dice: number } | null;
   blocked: boolean;
@@ -272,7 +274,14 @@ export const ludoGame: GameDefinition<LudoState, LudoView> = {
     if (state.stage === 'move' && state.moveDeadlineAt !== null && ctx.now >= state.moveDeadlineAt) {
       const movable = legalPlanes(state, state.dice ?? 0);
       const player = state.participantIds[state.seat];
-      if (!player || movable.length === 0) return false;
+      if (!player) return false;
+      if (movable.length === 0) {
+        // 防御：进入 move 阶段后理论上总有合法飞机；万一异常快照导致无棋可动，
+        // 轮空交给下家而不是永远停在这一步。
+        state.blockedReason = 'no-move';
+        passTurn(state, state.moveDeadlineAt);
+        return true;
+      }
       movePlaneByGlobal(state, player, movable[0]!, state.moveDeadlineAt);
       return true;
     }
@@ -288,6 +297,7 @@ export const ludoGame: GameDefinition<LudoState, LudoView> = {
       dice: state.phase === 'playing' && state.stage === 'move' ? state.dice : null,
       movablePlanes: movableGlobal.map((id) => id - state.seat * 4),
       planes: state.planes.map((plane) => ({ ...plane })),
+      seats: [...state.participantIds],
       sixStreak: state.sixStreak,
       lastRoll: state.lastRoll ? { ...state.lastRoll } : null,
       blocked: state.blockedReason !== null,

@@ -180,6 +180,18 @@ describe('飞行棋 · 行进与特殊格', () => {
   });
 });
 
+describe('飞行棋 · 座位映射', () => {
+  it('视图暴露按座位顺序的玩家表，回合推进不改变座位', () => {
+    const state = createGame(['red', 'yellow', 'green']);
+    expect(view(state).seats).toEqual(['red', 'yellow', 'green']);
+    // 红方掷 3 无棋可动轮空，座位交给黄方，但座位表保持开局顺序。
+    roll(state, 'red', 3);
+    const current = view(state);
+    expect(current.seat).toBe(1);
+    expect(current.seats).toEqual(['red', 'yellow', 'green']);
+  });
+});
+
 describe('飞行棋 · 连续 6 点、超时与收尾', () => {
   it('连续第三个 6 作废本轮，直接交给下家', () => {
     const state = createGame();
@@ -206,6 +218,17 @@ describe('飞行棋 · 连续 6 点、超时与收尾', () => {
     expect(planeP(current, 0, 0)).toBe(0);
     expect(current.stage).toBe('roll');
     expect(current.seat).toBe(0);
+  });
+
+  it('移动阶段超时时若无棋可动（异常快照防御）轮空而不是卡死', () => {
+    const state = createGame();
+    roll(state, 'red', 6);
+    // 强行把红方四架飞机都标记为已到家，制造「move 阶段却无合法飞机」的异常状态。
+    for (const plane of (state as { planes: Array<{ p: number }> }).planes) plane.p = 56;
+    expect(ludoGame.advanceTime(state, { now: 1_000 + LUDO_MOVE_TIMEOUT_MS, rng: Math.random })).toBe(true);
+    const current = view(state);
+    expect(current.seat).toBe(1);
+    expect(current.stage).toBe('roll');
   });
 
   it('四架飞机全部回家即获胜并结束整局', () => {

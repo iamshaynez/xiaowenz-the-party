@@ -41,6 +41,8 @@ export interface DouDizhuView {
   handResult: DouDizhuHandResult | null;
   revealedHands: Record<string, number[]> | null;
   winners: string[];
+  /** 按座位顺序的开局玩家表；玩家中途退出房间也不会改变，前端据此对齐座位。 */
+  seats: string[];
 }
 
 interface DouDizhuState {
@@ -400,6 +402,7 @@ export const douDizhuGame: GameDefinition<DouDizhuState, DouDizhuView> = {
       totalHands: state.totalHands,
       scores: { ...state.scores },
       ownHand: sortDouDizhuCards(state.hands[playerId] ?? []),
+      seats: [...state.participantIds],
       handCounts: Object.fromEntries(state.participantIds.map((id) => [id, state.hands[id]?.length ?? 0])),
       landlordId: state.landlordId,
       bottom: state.bottomRevealed ? [...state.bottom] : null,

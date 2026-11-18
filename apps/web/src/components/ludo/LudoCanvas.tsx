@@ -22,8 +22,9 @@ export function LudoCanvas({ game, players, playerId, onMovePlane, onFailure }: 
   const movableRef = useRef<number[]>([]);
   const gameRef = useRef(game);
   gameRef.current = game;
-  canPickRef.current = game.stage === 'move' && game.seat !== null && players[game.seat]?.id === playerId;
-  movableRef.current = game.movablePlanes;
+  canPickRef.current = game.stage === 'move' && game.seat !== null && game.seats[game.seat] === playerId;
+  // pickPlaneAt 比较的是全局飞机编号；movablePlanes 是「我的第 N 架」相对编号，先换算。
+  movableRef.current = game.movablePlanes.map((index) => (game.seat ?? 0) * 4 + index);
 
   useEffect(() => {
     const host = hostRef.current;

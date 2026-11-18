@@ -7,12 +7,14 @@ import { createAvatarBadge, createDiceMesh, createLabelSprite, disposeObjectTree
 import { woodTexture } from '../tabletop/textures';
 
 // ---------------------------------------------------------------------------
-// 飞行棋 3D 场景：52 格方形环道 + 四角停机坪 + 对角终点跑道 + 中央大本营。
+// 飞行棋 3D 场景：标准飞行棋布局——52 格方形环道 + 四角机场 +
+// 从四条边垂直指向中心的直线跑道 + 中央四色大本营。
 // 纯函数布局可脱离 WebGL 单测；场景只做差异驱动的摆放与动画。
 // ---------------------------------------------------------------------------
 
 export const LUDO_SEAT_COLORS = ['#e0524a', '#e8b33c', '#4f7bd9', '#58a95c'] as const;
 const RING_HALF = 6.5;
+const HANGAR_CENTER = 8.0;
 const ACCENT = '#ffd76e';
 
 /** 环道格 k(0..51) → 世界坐标（顺时针方形环）。 */
@@ -32,36 +34,91 @@ export function seatCorner(seat: number): THREE.Vector3 {
   return entry.clone().normalize();
 }
 
-/** 终点跑道第 h 格（h=0..5）：从本方入口 corner 附近斜向大本营。 */
+/** 座位 i 的跑道入口：环道上离家门两格处（p=50 对应的格子）。 */
+function laneEntryWorld(seat: number): THREE.Vector3 {
+  return ringCellWorld(seat * 13 + 50);
+}
+
+/** 终点跑道第 h 格（h=0..5）：从本方入口贴边垂直指向中心的直线。 */
 export function homeCellWorld(seat: number, h: number): THREE.Vector3 {
-  const corner = ringCellWorld(seat * 13).clone().normalize().multiplyScalar(RING_HALF);
-  const factor = 0.72 - h * 0.105;
-  return corner.multiplyScalar(factor);
+  const entry = laneEntryWorld(seat);
+  // 入口贴着某条边：沿指向中心的轴向逐格推进，跑道因此永远垂直于该边。
+  if (Math.abs(entry.x) > Math.abs(entry.z)) {
+    const step = -Math.sign(entry.x);
+    return new THREE.Vector3(entry.x + step * (h + 1), 0, entry.z);
+  }
+  const step = -Math.sign(entry.z);
+  return new THREE.Vector3(entry.x, 0, entry.z + step * (h + 1));
 }
 
-/** 停机坪位（seat 的 2×2 之一）。 */
+/** 停机坪位（seat 机场 2×2 之一）。 */
 export function hangarSlotWorld(seat: number, index: number): THREE.Vector3 {
-  const corner = ringCellWorld(seat * 13).clone().normalize().multiplyScalar(RING_HALF * 1.42);
-  const dx = (index % 2 - 0.5) * 1.35;
-  const dz = (Math.floor(index / 2) - 0.5) * 1.35;
-  const sideways = new THREE.Vector3(-corner.z, 0, corner.x).normalize();
-  const forward = corner.clone().normalize();
-  return corner.add(sideways.multiplyScalar(dx)).add(forward.multiplyScalar(dz * 0.6));
+  const corner = seatCorner(seat);
+  const center = corner.clone().multiplyScalar(HANGAR_CENTER);
+  const dx = (index % 2 - 0.5) * 1.5;
+  const dz = (Math.floor(index / 2) - 0.5) * 1.5;
+  const sideways = new THREE.Vector3(-corner.z, 0, corner.x);
+  return center.add(sideways.multiplyScalar(dx)).add(corner.multiplyScalar(dz));
 }
 
-/** 飞机所在世界坐标：停机坪 / 环道 / 终点跑道 / 大本营。 */
+/** 飞机所在世界坐标：停机坪 / 环道 / 终点跑道 / 大本营（到家按编号分散）。 */
 export function planeWorld(seat: number, p: number, index: number): THREE.Vector3 {
   if (p < 0) return hangarSlotWorld(seat, index);
-  if (p >= LUDO_HOME_STEPS) return seatCorner(seat).multiplyScalar(0.55);
+  if (p >= LUDO_HOME_STEPS) {
+    // 到家：停进中央大本营本方扇区，四架按编号排开，不叠在同一点。
+    const corner = seatCorner(seat);
+    const sideways = new THREE.Vector3(-corner.z, 0, corner.x);
+    return corner.clone().multiplyScalar(1.15).add(sideways.multiplyScalar((index - 1.5) * 0.62));
+  }
   if (p >= 50) return homeCellWorld(seat, p - 50);
   return ringCellWorld(seat * 13 + p);
 }
 
-function cellTint(seat: number, p: number): number | null {
-  // 己色格（p%4==2）与飞行格（p==18）染本方颜色。
-  if (p > 49) return null;
-  if (p % 4 === 2) return seat;
-  return null;
+export interface LudoCellStyle {
+  /** 染本方颜色（己色格、起飞格、飞行格）。 */
+  tinted: boolean;
+  /** 起飞格（p=0）：额外描白圈。 */
+  entry: boolean;
+  /** 飞行格（p=18）：额外标金星。 */
+  fly: boolean;
+}
+
+/** 相对座位 p 的格子样式：己色格 p%4==2，起飞格与飞行格一并染色。 */
+export function ludoCellStyle(p: number): LudoCellStyle {
+  if (p < 0 || p > 49) return { tinted: false, entry: false, fly: false };
+  const entry = p === 0;
+  const fly = p === 18;
+  return { tinted: entry || fly || p % 4 === 2, entry, fly };
+}
+
+/** 纸飞机造型（拉长锥 + 双翼 + 尾翼 + 编号牌）。 */
+export function createPlaneMesh(seat: number, index: number): THREE.Group {
+  const color = LUDO_SEAT_COLORS[seat] ?? LUDO_SEAT_COLORS[0]!;
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: 0.18 });
+  const group = new THREE.Group();
+  // 机身：纸飞机造型（拉长锥 + 双翼 + 尾翼）。
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.78, 5), material);
+  body.rotation.x = Math.PI / 2;
+  body.castShadow = true;
+  group.add(body);
+  const wingGeometry = new THREE.BoxGeometry(0.78, 0.05, 0.3);
+  const wing = new THREE.Mesh(wingGeometry, material);
+  wing.position.set(0, 0.02, -0.1);
+  wing.castShadow = true;
+  group.add(wing);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.2), material);
+  tail.position.set(0, 0.06, 0.3);
+  group.add(tail);
+  // 编号牌：悬浮在机身上方，玩家能看清是几号机。
+  const badge = createLabelSprite(`${index + 1}`, 0.6, {
+    color: '#221b10',
+    background: '#fffbe8',
+    bold: true,
+  });
+  badge.position.set(0, 0.52, 0);
+  badge.userData.numberBadge = index + 1;
+  group.add(badge);
+  return group;
 }
 
 interface PlaneActor {
@@ -107,7 +164,7 @@ export class LudoWorld implements TabletopScene {
     this.scene.add(this.fxGroup);
 
     this.dice = createDiceMesh(1.15);
-    this.dice.position.set(0, 0.9, 4.2);
+    this.dice.position.set(0, 0.95, 0);
     this.fxGroup.add(this.dice);
     faceDiceUp(this.dice, 6, 0.1);
 
@@ -139,17 +196,17 @@ export class LudoWorld implements TabletopScene {
     const plainMaterial = new THREE.MeshStandardMaterial({ color: '#f4ecd8', roughness: 0.6 });
     const seatMaterials = LUDO_SEAT_COLORS.map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.55 }));
 
-    // 环道 52 格：一格一主。己色格染本方颜色，入口格描白边，飞行格标金星。
+    // 环道 52 格：一格一主。己色格/起飞格/飞行格染本方颜色，起飞格描白圈，飞行格标金星。
     for (let k = 0; k < LUDO_RING_SIZE; k += 1) {
       let colorSeat: number | null = null;
       let entrySeat: number | null = null;
       let flySeat: number | null = null;
       for (let seat = 0; seat < 4; seat += 1) {
         const p = (((k - seat * 13) % LUDO_RING_SIZE) + LUDO_RING_SIZE) % LUDO_RING_SIZE;
-        if (p > 49) continue;
-        if (cellTint(seat, p) !== null) colorSeat = seat;
-        if (p === 0) entrySeat = seat;
-        if (p === 18) flySeat = seat;
+        const style = ludoCellStyle(p);
+        if (style.tinted) colorSeat = seat;
+        if (style.entry) entrySeat = seat;
+        if (style.fly) flySeat = seat;
       }
       const world = ringCellWorld(k);
       const tile = new THREE.Mesh(tileGeometry, colorSeat !== null ? seatMaterials[colorSeat]! : plainMaterial);
@@ -177,7 +234,7 @@ export class LudoWorld implements TabletopScene {
     }
 
     for (let seat = 0; seat < 4; seat += 1) {
-      // 终点跑道：本方颜色格子一路缩向大本营。
+      // 终点跑道：本方颜色直线格子一路指向大本营。
       for (let h = 0; h < 6; h += 1) {
         const world = homeCellWorld(seat, h);
         const lane = new THREE.Mesh(tileGeometry, seatMaterials[seat]!);
@@ -185,17 +242,17 @@ export class LudoWorld implements TabletopScene {
         lane.scale.setScalar(0.94 - h * 0.02);
         this.boardGroup.add(lane);
       }
-      // 停机坪：色环停机位。
-      const hangar = ringCellWorld(seat * 13).clone().normalize().multiplyScalar(RING_HALF * 1.42);
+      // 机场：四角色盘停机坪。
+      const hangar = seatCorner(seat).multiplyScalar(HANGAR_CENTER);
       const pad = new THREE.Mesh(
-        new THREE.CircleGeometry(1.9, 28),
+        new THREE.CircleGeometry(1.85, 28),
         new THREE.MeshStandardMaterial({ color: LUDO_SEAT_COLORS[seat]!, roughness: 0.7 }),
       );
       pad.rotation.x = -Math.PI / 2;
       pad.position.set(hangar.x, -0.06, hangar.z);
       this.boardGroup.add(pad);
       const padRim = new THREE.Mesh(
-        new THREE.TorusGeometry(1.9, 0.06, 8, 30),
+        new THREE.TorusGeometry(1.85, 0.06, 8, 30),
         new THREE.MeshBasicMaterial({ color: '#fffbe8' }),
       );
       padRim.rotation.x = -Math.PI / 2;
@@ -203,10 +260,10 @@ export class LudoWorld implements TabletopScene {
       this.boardGroup.add(padRim);
     }
 
-    // 中央大本营：四色扇形拼盘。
+    // 中央大本营：四色扇形拼盘，各家扇区正对自家角（到家飞机就停在那里）。
     for (let seat = 0; seat < 4; seat += 1) {
       const sector = new THREE.Mesh(
-        new THREE.CircleGeometry(2.35, 18, (seat * Math.PI) / 2 + Math.PI / 4, Math.PI / 2),
+        new THREE.CircleGeometry(2.35, 18, Math.PI / 2 - (seat * Math.PI) / 2, Math.PI / 2),
         new THREE.MeshStandardMaterial({ color: LUDO_SEAT_COLORS[seat]!, roughness: 0.6 }),
       );
       sector.rotation.x = -Math.PI / 2;
@@ -224,10 +281,10 @@ export class LudoWorld implements TabletopScene {
 
   setState(view: LudoView, players: LudoPlayerInfo[], selfId: string) {
     const seen = new Set<string>();
+    // 飞机随游戏状态走（座位固定为开局顺序），房内玩家变动不影响摆放。
     for (const plane of view.planes) {
       const key = `${plane.seat}:${plane.index}`;
       seen.add(key);
-      if (plane.seat >= players.length) continue;
       this.syncPlane(plane.seat, plane.index, plane.p);
     }
     for (const [key, actor] of this.actors) {
@@ -251,7 +308,7 @@ export class LudoWorld implements TabletopScene {
     const key = `${seat}:${index}`;
     let actor = this.actors.get(key);
     if (!actor) {
-      actor = { group: this.createPlaneMesh(seat), seat, index, targetP: p, liftUntil: -1 };
+      actor = { group: createPlaneMesh(seat, index), seat, index, targetP: p, liftUntil: -1 };
       this.actors.set(key, actor);
       this.fxGroup.add(actor.group);
     }
@@ -259,26 +316,6 @@ export class LudoWorld implements TabletopScene {
       actor.liftUntil = this.clock + 0.5;
       actor.targetP = p;
     }
-  }
-
-  private createPlaneMesh(seat: number): THREE.Group {
-    const color = LUDO_SEAT_COLORS[seat] ?? LUDO_SEAT_COLORS[0]!;
-    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: 0.18 });
-    const group = new THREE.Group();
-    // 机身：纸飞机造型（拉长锥 + 双翼 + 尾翼）。
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.78, 5), material);
-    body.rotation.x = Math.PI / 2;
-    body.castShadow = true;
-    group.add(body);
-    const wingGeometry = new THREE.BoxGeometry(0.78, 0.05, 0.3);
-    const wing = new THREE.Mesh(wingGeometry, material);
-    wing.position.set(0, 0.02, -0.1);
-    wing.castShadow = true;
-    group.add(wing);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.2), material);
-    tail.position.set(0, 0.06, 0.3);
-    group.add(tail);
-    return group;
   }
 
   private updateHighlights(view: LudoView) {
@@ -309,24 +346,26 @@ export class LudoWorld implements TabletopScene {
     }
     this.badges = [];
     if (view.phase === 'finished') return;
-    players.forEach((player, seat) => {
+    view.seats.forEach((seatPlayerId, seat) => {
+      const player = players.find((entry) => entry.id === seatPlayerId);
+      if (!player) return; // 已退出房间的玩家保留座位，但不再展示徽章。
       const isTurn = view.seat === seat;
-      const corner = ringCellWorld(seat * 13).clone().normalize().multiplyScalar(RING_HALF * 1.42);
+      const corner = seatCorner(seat).multiplyScalar(HANGAR_CENTER);
       const badge = createAvatarBadge(player.avatar, isTurn ? ACCENT : 'rgba(130,120,100,0.5)', 1.5);
-      badge.position.set(corner.x * 1.12, 1.9, corner.z * 1.12);
+      badge.position.set(corner.x, 2.0, corner.z);
       this.fxGroup.add(badge);
       this.badges.push(badge);
       const label = createLabelSprite(`${player.nickname}${player.id === selfId ? '（我）' : ''}`, 3.1, {
         color: isTurn ? ACCENT : '#e8dfc9',
         bold: isTurn,
       });
-      label.position.set(corner.x * 1.12, 1.05, corner.z * 1.12);
+      label.position.set(corner.x, 1.1, corner.z);
       this.fxGroup.add(label);
       this.badges.push(label);
     });
   }
 
-  /** 屏幕坐标 → 可点击飞机（仅高亮可动的）。 */
+  /** 屏幕坐标 → 可点击飞机（仅高亮可动的）；movable 为全局飞机编号。 */
   pickPlaneAt(clientX: number, clientY: number, rect: DOMRect, movable: number[]): number | null {
     const ndc = new THREE.Vector2(
       ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -363,7 +402,7 @@ export class LudoWorld implements TabletopScene {
       actor.group.position.y = baseY + lift;
       actor.group.rotation.y += deltaSeconds * (moving ? 9 : 0.8);
     }
-    // 骰子：换值时翻滚，落定在最新点数。
+    // 骰子：换值时翻滚，落定在最新点数（一面平躺朝上）。
     if (timeSeconds < this.diceSpinUntil) {
       this.dice.rotation.x += deltaSeconds * 14;
       this.dice.rotation.z += deltaSeconds * 9;
@@ -387,4 +426,3 @@ export class LudoWorld implements TabletopScene {
     this.stage.dispose();
   }
 }
-
