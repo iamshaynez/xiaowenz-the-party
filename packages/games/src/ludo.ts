@@ -8,12 +8,14 @@ export const LUDO_MOVE_TIMEOUT_MS = 45_000;
 // 进入 6 格终点跑道（p=50..55），p=56 为大本营；越过大本营的步数反弹折返。
 export const LUDO_RING_SIZE = 52;
 export const LUDO_HOME_STEPS = 56;
-// 己方颜色格：p ≡ 2 (mod 4)；跳跃 +4 格。飞行格 p=18：直接飞 +12 格。
+// 己方颜色格：p ≡ 2 (mod 4)；跳跃 +4 格。飞行格 p=18：沿虚线航线横穿棋盘飞 +12 格。
 const OWN_COLOR_MOD = 4;
 const OWN_COLOR_OFFSET = 2;
-const FLY_FROM = 18;
-const FLY_DISTANCE = 12;
+export const LUDO_FLY_FROM = 18;
+export const LUDO_FLY_DISTANCE = 12;
 const JUMP_DISTANCE = 4;
+// 飞行航线与对面家终点跑道的交叉点在对方跑道第 3 格（对方进度 p = 50 + 2 = 52）。
+const FLY_CROSS_HOME_STEP = 2;
 
 export interface LudoPlaneState {
   seat: number;
@@ -113,13 +115,27 @@ function captureAt(state: LudoState, seat: number, p: number) {
   }
 }
 
+// 飞行航线横穿棋盘，与对面家（座位 +2）的终点跑道交叉在对方第 3 格；
+// 交叉点上停着的对方飞机随航线一起被撞回停机坪。两人局没有对面家。
+function captureFlyCross(state: LudoState, flyerSeat: number) {
+  const count = state.participantIds.length;
+  if (count < 3) return;
+  const victimSeat = (flyerSeat + 2) % count;
+  if (victimSeat === flyerSeat) return;
+  const crossP = 50 + FLY_CROSS_HOME_STEP;
+  for (const plane of state.planes) {
+    if (plane.seat === victimSeat && plane.p === crossP) plane.p = -1;
+  }
+}
+
 // 落格结算：先撞机，再按规则享受飞行格与己色格跳跃，每次落点都重新结算撞机。
 function applyLanding(state: LudoState, plane: LudoPlaneState) {
   let p = plane.p;
   if (p > 49) return;
   captureAt(state, plane.seat, p);
-  if (p === FLY_FROM) {
-    p += FLY_DISTANCE;
+  if (p === LUDO_FLY_FROM) {
+    captureFlyCross(state, plane.seat);
+    p += LUDO_FLY_DISTANCE;
     plane.p = p;
     captureAt(state, plane.seat, p);
   }

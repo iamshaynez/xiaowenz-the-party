@@ -192,6 +192,64 @@ describe('飞行棋 · 座位映射', () => {
   });
 });
 
+describe('飞行棋 · 飞行航线撞机', () => {
+  const SEATS4 = ['red', 'yellow', 'green', 'blue'];
+
+  // 轮空到目标座位：全停机坪的玩家掷非 6 自动轮空；
+  // 场上有飞机的玩家掷 2 后自动移动（正好把对面家的飞机一步步推上跑道）。
+  function skipUntil(state: State, targetSeat: number) {
+    let guard = 0;
+    while (view(state).seat !== targetSeat && guard < 16) {
+      guard += 1;
+      const seat = view(state).seat!;
+      roll(state, SEATS4[seat]!, 2);
+      if (view(state).stage === 'move') move(state, SEATS4[seat]!, 0);
+    }
+    expect(view(state).seat).toBe(targetSeat);
+  }
+
+  it('飞行航线横穿对面家跑道：交叉点上的对方飞机被撞回停机坪', () => {
+    const state = createGame(SEATS4);
+    // 绿方（座位 2，红方的对面家）走一架飞机到 48，途中绕开飞行格：
+    // 6 起飞 0 → 5 → 10 跳 14 → 3(17) → 4(21) → 4(25) → 4(29) → 4(33) → 4(37) → 4(41) → 5(46) → 2(48)。
+    const greenWalk = [6, 5, 5, 3, 4, 4, 4, 4, 4, 4, 5, 2];
+    for (const dice of greenWalk) {
+      skipUntil(state, 2);
+      roll(state, 'green', dice);
+      move(state, 'green', 0);
+    }
+    expect(planeP(view(state), 2, 0)).toBe(48);
+    // 红方走 4 步：6 起飞(0) → 5(5) → 5(10 跳 14) → 4(18 触发飞行)。
+    // 每步之间轮到绿方时被掷 2 推进：48 → 50 → 52（跑道第 3 格 = 航线交叉点）。
+    const redWalk = [6, 5, 5, 4];
+    for (const dice of redWalk) {
+      skipUntil(state, 0);
+      roll(state, 'red', dice);
+      move(state, 'red', 0);
+    }
+    const current = view(state);
+    // 红机沿虚线飞行落 30 再跳 34；绿方停在交叉点（跑道第 3 格）的飞机被撞回停机坪。
+    expect(planeP(current, 0, 0)).toBe(34);
+    expect(planeP(current, 2, 0)).toBe(-1);
+  });
+
+  it('两人局没有对面家跑道，飞行不触发交叉撞机', () => {
+    const state = createGame(['red', 'yellow']);
+    roll(state, 'red', 6);
+    move(state, 'red', 0);
+    roll(state, 'red', 5);
+    move(state, 'red', 0);
+    roll(state, 'yellow', 2); // 轮空
+    roll(state, 'red', 5);
+    move(state, 'red', 0);
+    roll(state, 'yellow', 2);
+    roll(state, 'red', 4);
+    move(state, 'red', 0);
+    // 18 飞行 30，30 己色再跳 34：没有对面家，一切照常。
+    expect(planeP(view(state), 0, 0)).toBe(34);
+  });
+});
+
 describe('飞行棋 · 连续 6 点、超时与收尾', () => {
   it('连续第三个 6 作废本轮，直接交给下家', () => {
     const state = createGame();

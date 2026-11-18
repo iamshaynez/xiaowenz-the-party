@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { LudoView } from '@party/games';
-import { LUDO_HOME_STEPS, LUDO_RING_SIZE } from '@party/games';
+import { LUDO_FLY_DISTANCE, LUDO_FLY_FROM, LUDO_HOME_STEPS, LUDO_RING_SIZE } from '@party/games';
 import { CameraRig, createStage, damp } from '../tabletop/TabletopStage';
 import type { TabletopScene } from '../tabletop/TabletopStage';
 import { createAvatarBadge, createDiceMesh, createLabelSprite, disposeObjectTree, faceDiceUp } from '../tabletop/props';
@@ -89,6 +89,32 @@ export function ludoCellStyle(p: number): LudoCellStyle {
   const entry = p === 0;
   const fly = p === 18;
   return { tinted: entry || fly || p % 4 === 2, entry, fly };
+}
+
+/** 座位 s 的虚线飞行航线：从飞行格（p=18）横穿棋盘到落点（p=30）。 */
+export function flyLaneWorld(seat: number): { from: THREE.Vector3; to: THREE.Vector3 } {
+  return { from: ringCellWorld(seat * 13 + LUDO_FLY_FROM), to: ringCellWorld(seat * 13 + LUDO_FLY_FROM + LUDO_FLY_DISTANCE) };
+}
+
+/** 航线与对面家终点跑道的交叉点（对面跑道第 3 格）。 */
+export function flyCrossWorld(seat: number): THREE.Vector3 {
+  return homeCellWorld((seat + 2) % 4, 2);
+}
+
+/** 圆角矩形 Shape（机场色块用）。 */
+function roundedSquareShape(size: number, radius: number): THREE.Shape {
+  const half = size / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-half + radius, -half);
+  shape.lineTo(half - radius, -half);
+  shape.absarc(half - radius, -half + radius, radius, -Math.PI / 2, 0, false);
+  shape.lineTo(half, half - radius);
+  shape.absarc(half - radius, half - radius, radius, 0, Math.PI / 2, false);
+  shape.lineTo(-half + radius, half);
+  shape.absarc(-half + radius, half - radius, radius, Math.PI / 2, Math.PI, false);
+  shape.lineTo(-half, -half + radius);
+  shape.absarc(-half + radius, -half + radius, radius, Math.PI, Math.PI * 1.5, false);
+  return shape;
 }
 
 /** 纸飞机造型（拉长锥 + 双翼 + 尾翼 + 编号牌）。 */
@@ -242,22 +268,32 @@ export class LudoWorld implements TabletopScene {
         lane.scale.setScalar(0.94 - h * 0.02);
         this.boardGroup.add(lane);
       }
-      // 机场：四角色盘停机坪。
+      // 机场：四角方形圆角色块 + 白描边 + 2×2 停机位圆环（标准飞行棋观感）。
       const hangar = seatCorner(seat).multiplyScalar(HANGAR_CENTER);
+      const rimShape = new THREE.Mesh(
+        new THREE.ShapeGeometry(roundedSquareShape(4.0, 0.55)),
+        new THREE.MeshStandardMaterial({ color: '#fffbe8', roughness: 0.62 }),
+      );
+      rimShape.rotation.x = -Math.PI / 2;
+      rimShape.position.set(hangar.x, -0.07, hangar.z);
+      this.boardGroup.add(rimShape);
       const pad = new THREE.Mesh(
-        new THREE.CircleGeometry(1.85, 28),
+        new THREE.ShapeGeometry(roundedSquareShape(3.76, 0.45)),
         new THREE.MeshStandardMaterial({ color: LUDO_SEAT_COLORS[seat]!, roughness: 0.7 }),
       );
       pad.rotation.x = -Math.PI / 2;
-      pad.position.set(hangar.x, -0.06, hangar.z);
+      pad.position.set(hangar.x, -0.055, hangar.z);
       this.boardGroup.add(pad);
-      const padRim = new THREE.Mesh(
-        new THREE.TorusGeometry(1.85, 0.06, 8, 30),
-        new THREE.MeshBasicMaterial({ color: '#fffbe8' }),
-      );
-      padRim.rotation.x = -Math.PI / 2;
-      padRim.position.set(hangar.x, -0.05, hangar.z);
-      this.boardGroup.add(padRim);
+      for (let index = 0; index < 4; index += 1) {
+        const slot = hangarSlotWorld(seat, index);
+        const padRim = new THREE.Mesh(
+          new THREE.TorusGeometry(0.55, 0.05, 8, 26),
+          new THREE.MeshBasicMaterial({ color: '#fffbe8' }),
+        );
+        padRim.rotation.x = -Math.PI / 2;
+        padRim.position.set(slot.x, -0.02, slot.z);
+        this.boardGroup.add(padRim);
+      }
     }
 
     // 中央大本营：四色扇形拼盘，各家扇区正对自家角（到家飞机就停在那里）。
@@ -277,6 +313,44 @@ export class LudoWorld implements TabletopScene {
     hub.rotation.x = -Math.PI / 2;
     hub.position.y = 0.05;
     this.boardGroup.add(hub);
+
+    // 虚线飞行航线：从各家飞行格横穿棋盘到对面落点，与对面家终点跑道交叉。
+    for (let seat = 0; seat < 4; seat += 1) {
+      const lane = flyLaneWorld(seat);
+      const points = [
+        new THREE.Vector3(lane.from.x, 0.14, lane.from.z),
+        new THREE.Vector3(lane.to.x, 0.14, lane.to.z),
+      ];
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(lineGeometry, new THREE.LineDashedMaterial({
+        color: LUDO_SEAT_COLORS[seat]!,
+        dashSize: 0.42,
+        gapSize: 0.3,
+        transparent: true,
+        opacity: 0.9,
+      }));
+      line.computeLineDistances();
+      this.boardGroup.add(line);
+      // 航线起终点小色块，明确「从这里起飞、落到对面」。
+      for (const end of [lane.from, lane.to]) {
+        const dot = new THREE.Mesh(
+          new THREE.CircleGeometry(0.3, 20),
+          new THREE.MeshBasicMaterial({ color: LUDO_SEAT_COLORS[seat]! }),
+        );
+        dot.rotation.x = -Math.PI / 2;
+        dot.position.set(end.x, 0.13, end.z);
+        this.boardGroup.add(dot);
+      }
+      // 交叉点标记：航线穿过对面家跑道的位置，停在这里的飞机会被撞回机场。
+      const cross = flyCrossWorld(seat);
+      const crossMark = new THREE.Mesh(
+        new THREE.TorusGeometry(0.36, 0.06, 8, 24),
+        new THREE.MeshBasicMaterial({ color: '#fffbe8' }),
+      );
+      crossMark.rotation.x = -Math.PI / 2;
+      crossMark.position.set(cross.x, 0.16, cross.z);
+      this.boardGroup.add(crossMark);
+    }
   }
 
   setState(view: LudoView, players: LudoPlayerInfo[], selfId: string) {
