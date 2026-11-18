@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
   createPlaneMesh,
+  flyCrossWorld,
+  flyLaneWorld,
   hangarSlotWorld,
   homeCellWorld,
   ludoCellStyle,
   planeWorld,
+  ringCellWorld,
   seatCorner,
 } from '../../apps/web/src/components/ludo/LudoScene';
 import { createDiceMesh, faceDiceUp } from '../../apps/web/src/components/tabletop/props';
@@ -64,6 +67,23 @@ describe('飞行棋 · 标准棋盘几何', () => {
           expect(homes[i]!.distanceTo(homes[j]!)).toBeGreaterThan(0.4);
         }
       }
+    }
+  });
+
+  it('飞行航线：从飞行格横穿棋盘到对面落点，穿过对面家跑道的交叉点', () => {
+    for (const seat of SEATS) {
+      const lane = flyLaneWorld(seat);
+      // 航线两端是飞行格（p=18）与飞行落点（p=30）。
+      expect(lane.from.distanceTo(ringCellWorld(seat * 13 + 18))).toBeLessThan(1e-6);
+      expect(lane.to.distanceTo(ringCellWorld(seat * 13 + 30))).toBeLessThan(1e-6);
+      // 交叉点在对面家（座位 +2）终点跑道的第 3 格上。
+      const cross = flyCrossWorld(seat);
+      expect(cross.distanceTo(homeCellWorld((seat + 2) % 4, 2))).toBeLessThan(1e-6);
+      // 交叉点确实落在航线线段上（点到线段距离足够小），航线真正穿过跑道。
+      const segment = lane.to.clone().sub(lane.from);
+      const t = THREE.MathUtils.clamp(cross.clone().sub(lane.from).dot(segment) / segment.lengthSq(), 0, 1);
+      const closest = lane.from.clone().add(segment.multiplyScalar(t));
+      expect(cross.distanceTo(closest)).toBeLessThan(0.25);
     }
   });
 

@@ -21,7 +21,7 @@ export { PROMPTS } from './prompts';
 export { BUILDING_DURATION_MS, COUNTDOWN_DURATION_MS, monsterCarGame } from './monster-car';
 export { GOMOKU_MOVE_TIMEOUT_MS, GOMOKU_ROUND_RESULT_MS, gomokuGame } from './gomoku';
 export type { GomokuCell, GomokuPoint, GomokuView } from './gomoku';
-export { LUDO_HOME_STEPS, LUDO_MOVE_TIMEOUT_MS, LUDO_RING_SIZE, LUDO_ROLL_TIMEOUT_MS, ludoGame } from './ludo';
+export { LUDO_FLY_DISTANCE, LUDO_FLY_FROM, LUDO_HOME_STEPS, LUDO_MOVE_TIMEOUT_MS, LUDO_RING_SIZE, LUDO_ROLL_TIMEOUT_MS, ludoGame } from './ludo';
 export type { LudoPlaneState, LudoView } from './ludo';
 export {
   DOU_DIZHU_BID_TIMEOUT_MS,
