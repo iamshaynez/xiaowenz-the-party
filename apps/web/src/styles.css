@@ -704,7 +704,7 @@ button { border: 0; }
   font-size: 15px;
 }
 .bt-stage { position: relative; flex: 1; min-height: 0; }
-.bt-canvas, .gm-render-host, .ld-render-host, .dd-render-host, .th-render-host {
+.bt-canvas, .gm-render-host, .dd-render-host, .th-render-host {
   position: absolute;
   inset: 0;
   touch-action: none;
@@ -833,10 +833,38 @@ button { border: 0; }
 }
 .ld-move-button:not(:disabled):hover { background: rgba(255, 220, 140, 0.18); }
 .ld-blocked, .ld-six { font-style: normal; color: #ffb287; margin-left: 6px; }
-.ld-dom-board { position: absolute; inset: 12px; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; align-content: start; }
-.ld-dom-plane {
-  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #e9e0c8; font-size: 13px;
+.ld-board-host { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 10px; }
+.ld-board { width: 100%; height: 100%; max-width: min(100%, 72vh); max-height: 100%; user-select: none; }
+.ld-board text { pointer-events: none; }
+.ld-plane { cursor: default; }
+.ld-plane.is-movable { cursor: pointer; }
+.ld-plane-halo { animation: ld-plane-pulse 1.1s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ld-plane-pulse {
+  0%, 100% { transform: scale(0.82); opacity: 0.55; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+/* 2D 骰子：点阵 + 掷骰摇动（纯本地展示）。 */
+.ld-dice {
+  display: inline-grid; grid-template-columns: repeat(3, 6px); grid-template-rows: repeat(3, 6px);
+  gap: 2px; padding: 4px; border-radius: 8px; background: #fffbe8; border: 2px solid #cbbfa4;
+  margin-right: 8px; vertical-align: -10px; box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+.ld-dice.is-rolling { animation: ld-dice-roll 0.85s ease-in-out; }
+@keyframes ld-dice-roll {
+  0% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-18deg) scale(1.18); }
+  45% { transform: rotate(14deg) scale(1.1); }
+  70% { transform: rotate(-8deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.ld-dice-pip { width: 6px; height: 6px; border-radius: 50%; background: transparent; }
+.ld-dice[data-pips="1"] .ld-dice-pip:nth-child(5),
+.ld-dice[data-pips="2"] .ld-dice-pip:nth-child(1), .ld-dice[data-pips="2"] .ld-dice-pip:nth-child(9),
+.ld-dice[data-pips="3"] .ld-dice-pip:nth-child(1), .ld-dice[data-pips="3"] .ld-dice-pip:nth-child(5), .ld-dice[data-pips="3"] .ld-dice-pip:nth-child(9),
+.ld-dice[data-pips="4"] .ld-dice-pip:nth-child(1), .ld-dice[data-pips="4"] .ld-dice-pip:nth-child(3), .ld-dice[data-pips="4"] .ld-dice-pip:nth-child(7), .ld-dice[data-pips="4"] .ld-dice-pip:nth-child(9),
+.ld-dice[data-pips="5"] .ld-dice-pip:nth-child(1), .ld-dice[data-pips="5"] .ld-dice-pip:nth-child(3), .ld-dice[data-pips="5"] .ld-dice-pip:nth-child(5), .ld-dice[data-pips="5"] .ld-dice-pip:nth-child(7), .ld-dice[data-pips="5"] .ld-dice-pip:nth-child(9),
+.ld-dice[data-pips="6"] .ld-dice-pip:nth-child(1), .ld-dice[data-pips="6"] .ld-dice-pip:nth-child(3), .ld-dice[data-pips="6"] .ld-dice-pip:nth-child(4), .ld-dice[data-pips="6"] .ld-dice-pip:nth-child(6), .ld-dice[data-pips="6"] .ld-dice-pip:nth-child(7), .ld-dice[data-pips="6"] .ld-dice-pip:nth-child(9) {
+  background: #2c2317;
 }
 .ld-dom-plane:not(:disabled) { border-color: #ffd76e; cursor: pointer; }
 .ld-ranking { margin: 0; padding: 0; list-style: none; color: #ded4bd; display: grid; gap: 6px; }

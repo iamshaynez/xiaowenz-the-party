@@ -151,15 +151,15 @@ git branch -D feat/<short-name>  # squash merge 后，确认 PR 已合并再删�
 
 #### 棋牌室（gomoku / ludo / dou-dizhu / texas-holdem）
 
-四款标准桌面游戏共用 `apps/web/src/components/tabletop/` 渲染套件：`TabletopStage.ts`（俱乐部灯光、机位阻尼相机、WebGL 宿主）、`textures.ts`（木纹/毛毡/牌面/筹码/骰子等全程序化 Canvas 纹理，带缓存）、`props.ts`（扑克牌/筹码柱/骰子/徽章工厂；几何与材质共享缓存，`userData.shared` 标记的资产不做释放）。修改时遵守：
+五子棋、斗地主与德州扑克共用 `apps/web/src/components/tabletop/` 渲染套件：`TabletopStage.ts`（俱乐部灯光、机位阻尼相机、WebGL 宿主）、`textures.ts`（木纹/毛毡/牌面/筹码/骰子等全程序化 Canvas 纹理，带缓存）、`props.ts`（扑克牌/筹码柱/骰子/徽章工厂；几何与材质共享缓存，`userData.shared` 标记的资产不做释放）。飞行棋是唯一例外：使用 `apps/web/src/components/ludo/` 的 **2D SVG 棋盘**（`LudoBoard.tsx` + `boardGeometry.ts` 纯几何），无 WebGL 依赖，骰子为 DOM 点阵元件。修改时遵守：
 
 - 扑克牌号是共享契约：`suit = floor(id/13)`、`rank = id%13`（0='2'…12='A'，A 大）、52/53 为小/大王；斗地主与德州扑克共用，不得重排或复用编号。
 - 五子棋：15×15 自由长连规则，`next-board` 仅房主提前推进，超时服务端自动落子（中心螺旋首个空位，确定性）。
-- 飞行棋：骰子只由服务端掷；`move-plane` 的 `plane` 是**相对本机**编号 0–3（服务端换算全局），视图 `movablePlanes` 同为相对编号；己色格 p%4==2 跳 +4、p==18 沿虚线航线飞 +12 可连跳，航线横穿棋盘并与对面家（座位 +2）跑道第 3 格交叉、撞回交叉点上的对方飞机（两人局无对面家）、终点反弹、三连 6 作废。棋盘几何纯函数（`ringCellWorld`/`homeCellWorld`/`hangarSlotWorld`/`planeWorld`/`flyLaneWorld`/`flyCrossWorld`）可无 WebGL 测试。
+- 飞行棋：骰子只由服务端掷；`move-plane` 的 `plane` 是**相对本机**编号 0–3（服务端换算全局），视图 `movablePlanes` 同为相对编号；己色格 p%4==2 跳 +4、p==18 沿虚线航线飞 +12 可连跳，航线横穿棋盘并与对面家（座位 +2）跑道第 3 格交叉、撞回交叉点上的对方飞机（两人局无对面家）、终点反弹、三连 6 作废。2D 棋盘几何纯函数在 `apps/web/src/components/ludo/boardGeometry.ts`（`ringCell`/`homeCell`/`hangarSlot`/`planeAt`/`flyLane`/`flyCross`/`planeHeading`）可无浏览器渲染直接测试；SVG 棋盘本身在 jsdom 可测，不需要 WebGL 降级。
 - 斗地主：叫分 1/2/3 每人一次、两轮流局后强制坐庄；倍数 = 叫分 ×2^炸弹 ×春天/反春；牌型引擎在 `packages/games/src/dou-dizhu/combo.ts`（`parseDouDizhuCombo`/`douDizhuBeats`），UI 即时校验复用同一实现但服务端是最终权威。手牌与底牌按玩家裁剪，`revealedHands` 只在手牌结果后公开。
 - 德州扑克：起始 2000 vs 盲注 10/20（100BB）、每 6 手翻倍；`bet`/`raise-to` 的 amount 均为本街投入总额；最小加注线、短全下不重开行动权、未跟注退款、边池分层与零头筹码顺时针分配都按国际惯例在服务端结算；牌力评估在 `packages/games/src/texas-holdem/evaluator.ts`。弃牌者的底牌永不进入任何视图。
 - 四款游戏超时都自动托管（能过则过/面对下注弃牌/斗地主跟牌自动不要/飞行棋自动掷骰与移动），托管行为必须是确定性的纯函数。
-- 面板的 `onFailure` 必须用 `useCallback` 固定引用——内联函数会让 3D 画布随每次快照整体重建（已踩过坑）。WebGL 不可用时切换 DOM 降级（棋盘按钮网格/文字手牌/文字牌桌），键盘操作（五子棋方向键+回车、斗地主 ←→/空格/回车）与指针操作并存。
+- 3D 面板的 `onFailure` 必须用 `useCallback` 固定引用——内联函数会让 3D 画布随每次快照整体重建（已踩过坑）。WebGL 不可用时 3D 面板切换 DOM 降级（棋盘按钮网格/文字手牌/文字牌桌）；飞行棋 2D SVG 棋盘无 WebGL 依赖，不需要降级。键盘操作（五子棋方向键+回车、斗地主 ←→/空格/回车）与指针操作并存。
 
 `most-likely` 题库位于 `packages/games/src/prompts.ts`，当前为 **100 道静态题、10 个类别**；每类编辑结构为 **6 道喜剧向 + 4 道轻松向**。修改题库时：
 
