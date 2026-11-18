@@ -13,7 +13,12 @@ export function DouDizhuPanel({ room, playerId, onAction, onEndGame, pending, se
   const game = room.game as DouDizhuView;
   const isOwner = room.ownerId === playerId;
   const players: DouDizhuPlayerInfo[] = room.players.map((player) => ({ id: player.id, nickname: player.nickname, avatar: player.avatar }));
-  const mySeat = players.findIndex((player) => player.id === playerId);
+  // 座位以开局时的座位表为准：中途有人退出房间后 players 顺序会前移，不能用其索引。
+  const mySeat = game.seats.indexOf(playerId);
+  const seatPlayerName = (seat: number | null) => {
+    const seatId = seat !== null ? game.seats[seat] : undefined;
+    return seatId !== undefined ? playerNameOf(room.players, seatId) : '';
+  };
   const isMyTurn = game.turnSeat !== null && game.turnSeat === mySeat && (game.phase === 'bidding' || game.phase === 'playing');
   const isLandlord = game.landlordId === playerId;
   const [webglFailed, setWebglFailed] = useState(false);
@@ -100,10 +105,10 @@ export function DouDizhuPanel({ room, playerId, onAction, onEndGame, pending, se
             {game.phase === 'bidding'
               ? (isMyTurn
                 ? <>轮到你叫分（当前最高 {currentHighBid} 分）· {secondsLeft ?? '—'} 秒</>
-                : <>等待 {playerNameOf(room.players, players[game.turnSeat ?? 0]?.id ?? '')} 叫分</>)
+                : <>等待 {seatPlayerName(game.turnSeat)} 叫分</>)
               : (isMyTurn
                 ? <>轮到你出牌{isLeading ? '（你来领出）' : ''} · {secondsLeft ?? '—'} 秒</>
-                : <>等待 {playerNameOf(room.players, players[game.turnSeat ?? 0]?.id ?? '')} 出牌</>)}
+                : <>等待 {seatPlayerName(game.turnSeat)} 出牌</>)}
           </div>
         )}
 
@@ -180,7 +185,7 @@ export function DouDizhuPanel({ room, playerId, onAction, onEndGame, pending, se
         )}
       </section>
       <div className="sr-only" role="status">
-        {game.phase === 'playing' ? `轮到 ${playerNameOf(room.players, players[game.turnSeat ?? 0]?.id ?? '')} 出牌` : '斗地主进行中'}
+        {game.phase === 'playing' ? `轮到 ${seatPlayerName(game.turnSeat)} 出牌` : '斗地主进行中'}
       </div>
     </main>
   );

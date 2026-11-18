@@ -45,6 +45,9 @@ export function usePartyRoom(code: string, services: PartyServices) {
             setStatus('connected');
             setRoom(message.session.room);
             setError(null);
+            // 重连成功：旧连接上未收到 ack 的操作已不可能回来，解除按钮锁定，
+            // 玩家可以用新的 actionId 重发（服务端按 actionId 幂等去重）。
+            setPending(false);
             pingSentAtRef.current = Date.now();
             connectionRef.current?.send({ type: 'ping' });
           } else if (message.type === 'room') {
