@@ -138,7 +138,7 @@ export function createChipStackMesh(count: number, base: string, stripe: string,
   return group;
 }
 
-/** 骰子：六个点面的圆角方块；setDiceFace 转到指定点数朝上。 */
+/** 骰子：六个点面的圆角方块；faceDiceUp 转到指定点数朝上。 */
 export function createDiceMesh(size = 0.5): THREE.Group {
   const group = new THREE.Group();
   const geometry = new THREE.BoxGeometry(size, size, size);
@@ -146,10 +146,13 @@ export function createDiceMesh(size = 0.5): THREE.Group {
   const materials: THREE.Material[] = [];
   for (const [a, b] of faceOrder) {
     for (const pips of [b, a]) {
-      materials.push(new THREE.MeshStandardMaterial({ map: diceFaceTexture(pips), roughness: 0.55 }));
+      const material = new THREE.MeshStandardMaterial({ map: diceFaceTexture(pips), roughness: 0.55 });
+      // 记录面点数，测试据此断言「指定点数确实朝上」。
+      material.userData.pips = pips;
+      materials.push(material);
     }
   }
-  // BoxGeometry 材质顺序：+x,-x,+y,-y,+z,-z；标准骰子对面之和为 7。
+  // BoxGeometry 材质顺序：+x,-x,+y,-y,+z,-z = 5,2,6,3,4,1；标准骰子对面之和为 7。
   const dice = new THREE.Mesh(geometry, [materials[2]!, materials[3]!, materials[4]!, materials[5]!, materials[0]!, materials[1]!]);
   dice.castShadow = true;
   group.add(dice);
@@ -157,21 +160,22 @@ export function createDiceMesh(size = 0.5): THREE.Group {
   return group;
 }
 
-/** 让骰子某个点数朝上（+Y），带轻微随机偏转。 */
+/** 让骰子某个点数朝上（+Y），带轻微随机水平偏转。 */
 export function faceDiceUp(group: THREE.Group, pips: number, jitter = 0.18) {
   const dice = group.userData.dice as THREE.Mesh | undefined;
   if (!dice) return;
-  // 各点数朝上所需的欧拉角（BoxGeometry 面序 +x,-x,+y,-y,+z,-z）。
+  // 各点数朝上所需的欧拉角，按上面的面序（+x=5、-x=2、+y=6、-y=3、+z=4、-z=1）推得。
   const eulerByPips: Record<number, [number, number, number]> = {
-    5: [0, 0, 0],       // +y 已是 5
-    2: [Math.PI / 2, 0, 0],
-    1: [0, 0, -Math.PI / 2],
-    3: [0, 0, Math.PI / 2],
-    6: [-Math.PI / 2, 0, 0],
-    4: [Math.PI, 0, 0],
+    6: [0, 0, 0],       // +y 已是 6
+    3: [Math.PI, 0, 0],
+    5: [0, 0, Math.PI / 2],
+    2: [0, 0, -Math.PI / 2],
+    4: [-Math.PI / 2, 0, 0],
+    1: [Math.PI / 2, 0, 0],
   };
   const [rx, ry, rz] = eulerByPips[pips] ?? [0, 0, 0];
-  dice.rotation.set(rx + jitter, ry + jitter * 1.7, rz + jitter * 0.6);
+  // 偏转只绕 Y 轴（水平转向）：不改变朝上面的仰角，骰子始终平躺有一面朝上。
+  dice.rotation.set(rx, ry + jitter, rz);
 }
 
 /** 头像徽章 Sprite（Billboard）。 */

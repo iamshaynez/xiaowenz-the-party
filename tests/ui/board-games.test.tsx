@@ -39,16 +39,16 @@ const players: RoomView['players'] = [
   { id: 'p3', nickname: '青蛙', avatar: '🐸', role: 'player', connected: true },
 ];
 
-function roomWith(game: unknown, phase: RoomView['phase'] = 'playing'): RoomView {
-  return { code: 'ABC234', phase, ownerId: 'owner', version: 3, players, game: game as never };
+function roomWith(game: unknown, phase: RoomView['phase'] = 'playing', playersOverride?: RoomView['players']): RoomView {
+  return { code: 'ABC234', phase, ownerId: 'owner', version: 3, players: playersOverride ?? players, game: game as never };
 }
 
-function renderPanel(game: unknown, playerId = 'owner') {
+function renderPanel(game: unknown, playerId = 'owner', playersOverride?: RoomView['players']) {
   const onAction = vi.fn();
   const onEndGame = vi.fn();
   render(
     <GamePanel
-      room={roomWith(game)}
+      room={roomWith(game, 'playing', playersOverride)}
       playerId={playerId}
       onAction={onAction}
       onEndGame={onEndGame}
@@ -117,6 +117,7 @@ describe('飞行棋面板', () => {
     dice: null,
     movablePlanes: [],
     planes: players.slice(0, 2).flatMap((_, seat) => [0, 1, 2, 3].map((index) => ({ seat, index, p: -1 }))),
+    seats: ['owner', 'p2'],
     sixStreak: 0,
     lastRoll: null,
     blocked: false,
@@ -139,6 +140,34 @@ describe('飞行棋面板', () => {
     const { onAction: onMove } = renderPanel(moving, 'owner');
     await user.click(await screen.findByRole('button', { name: '2 号机起飞' }));
     expect(onMove).toHaveBeenCalledWith({ type: 'move-plane', plane: 1 });
+  });
+
+  it('座位 0 玩家退出房间后，座位 1 玩家仍能按原座位掷骰', async () => {
+    // 房主（座位 0）已离开房间：房间玩家列表只剩 p2，但游戏座位表保持开局顺序。
+    const shifted: LudoView = { ...playing, seat: 1 };
+    const remaining: RoomView['players'] = [players[1]!];
+    const user = userEvent.setup();
+    const { onAction } = renderPanel(shifted, 'p2', remaining);
+    await user.click(await screen.findByRole('button', { name: /掷骰子/ }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'roll-dice' });
+  });
+
+  it('文字降级模式下座位 1 玩家可点击自己的可动飞机', async () => {
+    flags.failAll = true;
+    try {
+      const user = userEvent.setup();
+      const moving: LudoView = { ...playing, seat: 1, stage: 'move', dice: 3, movablePlanes: [0], rollDeadlineAt: null, moveDeadlineAt: Date.now() + 45_000 };
+      const { onAction } = renderPanel(moving, 'p2');
+      const board = await screen.findByRole('group', { name: '飞行棋棋盘（文字模式）' });
+      const own = within(board).getByRole('button', { name: /阿棕 1 号机/ });
+      expect(own).toBeEnabled();
+      await user.click(own);
+      expect(onAction).toHaveBeenCalledWith({ type: 'move-plane', plane: 0 });
+      const other = within(board).getByRole('button', { name: /小文 1 号机/ });
+      expect(other).toBeDisabled();
+    } finally {
+      flags.failAll = false;
+    }
   });
 
   it('终局展示排名与再来一局（仅房主）', async () => {
@@ -174,6 +203,7 @@ describe('斗地主面板', () => {
     bottom: null,
     bids: [],
     turnSeat: 0,
+    seats: ['owner', 'p2', 'p3'],
     plays: [],
     lastPlay: null,
     deadlineAt: Date.now() + 45_000,
@@ -192,6 +222,17 @@ describe('斗地主面板', () => {
     expect(within(group).getByRole('button', { name: '3 分' })).toBeEnabled();
     await user.click(within(group).getByRole('button', { name: '3 分' }));
     expect(onAction).toHaveBeenCalledWith({ type: 'bid', points: 3 });
+  });
+
+  it('座位 0 玩家退出房间后，座位 1 玩家仍按原座位叫分', async () => {
+    // 房主（座位 0）已离开：房间玩家列表前移，但座位表保持开局顺序。
+    const shifted: DouDizhuView = { ...bidding, turnSeat: 1 };
+    const remaining: RoomView['players'] = [players[1]!, players[2]!];
+    const user = userEvent.setup();
+    const { onAction } = renderPanel(shifted, 'p2', remaining);
+    const group = await screen.findByRole('group', { name: '叫分' });
+    await user.click(within(group).getByRole('button', { name: '不叫' }));
+    expect(onAction).toHaveBeenCalledWith({ type: 'pass' });
   });
 
   it('WebGL 降级后可在文字手牌里选牌出牌', async () => {

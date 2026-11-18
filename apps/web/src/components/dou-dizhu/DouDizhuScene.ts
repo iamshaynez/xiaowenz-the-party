@@ -149,9 +149,10 @@ export class DouDizhuWorld implements TabletopScene {
     this.tableGroups = [];
   }
 
-  private syncTable(view: DouDizhuView, players: DouDizhuPlayerInfo[], selfId: string) {
+  private syncTable(view: DouDizhuView, _players: DouDizhuPlayerInfo[], selfId: string) {
     this.clearTable();
-    const selfSeat = Math.max(0, players.findIndex((player) => player.id === selfId));
+    // 座位一律以开局座位表（view.seats）为准，房内玩家变动不影响桌面方位。
+    const selfSeat = Math.max(0, view.seats.indexOf(selfId));
     // 底牌：决定地主后亮在桌顶。
     if (view.bottom && view.landlordId) {
       const group = new THREE.Group();
@@ -167,7 +168,7 @@ export class DouDizhuWorld implements TabletopScene {
     }
     // 当前一轮的出牌/过牌。
     for (const play of view.plays) {
-      const seat = players.findIndex((player) => player.id === play.playerId);
+      const seat = view.seats.indexOf(play.playerId);
       if (seat < 0) continue;
       const anchor = seatAnchor(seat, selfSeat);
       const group = new THREE.Group();
@@ -189,7 +190,7 @@ export class DouDizhuWorld implements TabletopScene {
     }
     // 上一手仍在桌面（两人都不要时 plays 会清空，保留最后出牌展示）。
     if (view.plays.length === 0 && view.lastPlay) {
-      const seat = players.findIndex((player) => player.id === view.lastPlay!.playerId);
+      const seat = view.seats.indexOf(view.lastPlay!.playerId);
       if (seat >= 0) {
         const anchor = seatAnchor(seat, selfSeat);
         const group = new THREE.Group();
@@ -218,7 +219,7 @@ export class DouDizhuWorld implements TabletopScene {
 
   private syncBadges(view: DouDizhuView, players: DouDizhuPlayerInfo[], selfId: string) {
     // 对家牌背扇与徽章按签名重建：仅在手牌数/回合/庄家变化时更新，平时零重建。
-    const fanSignature = players.map((player) => `${player.id}:${view.handCounts[player.id] ?? 0}`).join('|');
+    const fanSignature = view.seats.map((id) => `${id}:${view.handCounts[id] ?? 0}`).join('|');
     if (fanSignature !== this.fanSignature) {
       this.fanSignature = fanSignature;
       for (const group of this.fanGroups.values()) {
@@ -226,11 +227,11 @@ export class DouDizhuWorld implements TabletopScene {
         disposeObjectTree(group);
       }
       this.fanGroups.clear();
-      const selfSeat = Math.max(0, players.findIndex((player) => player.id === selfId));
-      for (let seat = 0; seat < players.length; seat += 1) {
+      const selfSeat = Math.max(0, view.seats.indexOf(selfId));
+      for (let seat = 0; seat < view.seats.length; seat += 1) {
         const relative = (seat - selfSeat + 3) % 3;
         if (relative === 0) continue;
-        const count = Math.min(view.handCounts[players[seat]!.id] ?? 0, 17);
+        const count = Math.min(view.handCounts[view.seats[seat]!] ?? 0, 17);
         if (count === 0) continue;
         const anchor = seatAnchor(seat, selfSeat).clone().add(new THREE.Vector3(0, 0, -1.7));
         const backGroup = new THREE.Group();
@@ -242,7 +243,7 @@ export class DouDizhuWorld implements TabletopScene {
           backGroup.add(card);
         }
         this.fxGroup.add(backGroup);
-        this.fanGroups.set(players[seat]!.id, backGroup);
+        this.fanGroups.set(view.seats[seat]!, backGroup);
       }
     }
 
@@ -262,8 +263,10 @@ export class DouDizhuWorld implements TabletopScene {
     }
     this.badges = [];
     if (view.phase === 'finished') return;
-    const selfSeat = Math.max(0, players.findIndex((player) => player.id === selfId));
-    players.forEach((player, seat) => {
+    const selfSeat = Math.max(0, view.seats.indexOf(selfId));
+    view.seats.forEach((seatPlayerId, seat) => {
+      const player = players.find((entry) => entry.id === seatPlayerId);
+      if (!player) return; // 已退出房间的玩家保留座位但不再展示徽章
       const relative = (seat - selfSeat + 3) % 3;
       const anchor = relative === 0 ? new THREE.Vector3(0, 0, 7.6) : seatAnchor(seat, selfSeat).clone().add(new THREE.Vector3(0, 0, -1.7));
       const isTurn = view.turnSeat === seat && view.phase !== 'hand-result';

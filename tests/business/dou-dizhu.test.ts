@@ -117,6 +117,11 @@ describe('斗地主 · 发牌与叫分', () => {
     expect(stranger.ownHand.every((card) => !first.ownHand.includes(card))).toBe(true);
   });
 
+  it('视图暴露按座位顺序的玩家表，供前端对齐离开玩家后的座位', () => {
+    const state = createGame();
+    expect(view(state, PLAYERS[1]!).seats).toEqual(PLAYERS);
+  });
+
   it('叫分轮转：每人一次机会，1 分 → 过 → 2 分，最高分者坐庄并收底牌', () => {
     const state = createGame();
     act(state, PLAYERS[0]!, { type: 'bid', points: 1 });

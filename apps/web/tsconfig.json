@@ -3,7 +3,17 @@
   "compilerOptions": {
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client", "@testing-library/jest-dom"]
+    "types": ["vite/client", "@testing-library/jest-dom"],
+    "baseUrl": "../..",
+    "paths": {
+      // 子配置声明 paths 会整体覆盖 base 的映射，须一并列出。
+      "@party/protocol": ["packages/protocol/src/index.ts"],
+      "@party/game-core": ["packages/game-core/src/index.ts"],
+      "@party/games": ["packages/games/src/index.ts"],
+      "@party/room": ["packages/room/src/index.ts"],
+      // 测试文件位于仓库根 tests/ui，tsc 从那里向上解析不到本包的 three。
+      "three": ["./apps/web/node_modules/@types/three/index.d.ts"]
+    }
   },
   "include": ["src", "../../tests/ui"]
 }
