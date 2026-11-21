@@ -1,23 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Crown, Diamond, RotateCcw, Spade } from 'lucide-react';
 import type { HoldemView } from '@party/games';
 import { HOLDEM_STARTING_STACK, describeHoldemCards } from '@party/games';
 import { playerAvatarOf, playerNameOf } from '../playerDisplay';
 import type { GamePanelProps } from '../gamePanelTypes';
-import { TexasHoldemCanvas } from './TexasHoldemCanvas';
-import type { HoldemPlayerInfo } from './TexasHoldemScene';
+import { TexasHoldemBoard } from './TexasHoldemBoard';
+import type { HoldemPlayerInfo } from './TexasHoldemBoard';
 
 const STREET_LABELS = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌' } as const;
 
-// 德州扑克面板：3D 牌桌 + DOM 操作栏（弃牌/过牌/跟注/下注/加注）。
+// 德州扑克面板：2D 俯视 SVG 牌桌（无 WebGL 依赖）+ DOM 操作栏（弃牌/过牌/跟注/下注/加注）。
 export function TexasHoldemPanel({ room, playerId, onAction, onEndGame, pending, serverClockOffsetMs = 0 }: GamePanelProps) {
   const game = room.game as HoldemView;
   const isOwner = room.ownerId === playerId;
   const players: HoldemPlayerInfo[] = room.players.map((player) => ({ id: player.id, nickname: player.nickname, avatar: player.avatar }));
   const mySeatView = game.seats.find((seat) => seat.playerId === playerId);
   const isMyTurn = game.phase === 'betting' && game.seats[game.toActSeat ?? -1]?.playerId === playerId;
-  const [webglFailed, setWebglFailed] = useState(false);
-  const handleRenderFailure = useCallback(() => setWebglFailed(true), []);
   const [now, setNow] = useState(Date.now() + serverClockOffsetMs);
   const [raiseAmount, setRaiseAmount] = useState<number | null>(null);
 
@@ -75,20 +73,7 @@ export function TexasHoldemPanel({ room, playerId, onAction, onEndGame, pending,
       </header>
 
       <section className="bt-stage" aria-label="德州扑克牌桌">
-        {!webglFailed ? (
-          <TexasHoldemCanvas game={game} players={players} playerId={playerId} onFailure={handleRenderFailure} />
-        ) : (
-          <div className="th-dom-table" role="group" aria-label="德州扑克牌桌（文字模式）">
-            <p>公共牌：{game.community.length > 0 ? game.community.length + ' 张' : '暂无'} · 当前注 {game.currentBet}</p>
-            {game.seats.map((seat, index) => (
-              <p key={seat.playerId} className={game.toActSeat === index ? 'is-turn' : ''}>
-                {playerNameOf(room.players, seat.playerId)}：{seat.stack} 筹码
-                {seat.streetBet > 0 ? ` · 本街 ${seat.streetBet}` : ''}
-                {seat.folded ? ' · 已弃牌' : seat.allIn ? ' · 全下' : ''}
-              </p>
-            ))}
-          </div>
-        )}
+        <TexasHoldemBoard game={game} players={players} playerId={playerId} secondsLeft={secondsLeft} />
 
         {(game.phase === 'betting' || game.phase === 'runout') && (
           <div className={`bt-status ${isMyTurn ? 'is-my-turn' : ''}`} role="status">

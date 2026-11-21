@@ -3,15 +3,13 @@ import {
   avatarBadgeTexture,
   cardBackTexture,
   cardFaceTexture,
-  chipEdgeTexture,
-  chipFaceTexture,
   diceFaceTexture,
   dotTexture,
   labelTexture,
 } from './textures';
 
 // ---------------------------------------------------------------------------
-// 桌面游戏共享的道具工厂：扑克牌、筹码、骰子、徽章与标签。
+// 桌面游戏共享的道具工厂：扑克牌、骰子、徽章与标签。
 // 返回的 Group 由各游戏场景负责放置与释放。
 // ---------------------------------------------------------------------------
 
@@ -85,57 +83,6 @@ export function createCardMesh(cardId: number, faceUp: boolean, options: CardMes
 export function flipCard(card: THREE.Group, faceUp: boolean) {
   card.userData.face.visible = faceUp;
   card.userData.back.visible = !faceUp;
-}
-
-// 筹码几何与材质同样按配色共享，避免牌桌上反复分配。
-const chipAssetsCache = new Map<string, {
-  edge: THREE.CylinderGeometry;
-  face: THREE.CylinderGeometry;
-  edgeMaterial: THREE.MeshStandardMaterial;
-  faceMaterial: THREE.MeshStandardMaterial;
-}>();
-
-/** 筹码柱：count 枚筹码错位堆叠（几何/材质共享缓存）。 */
-export function createChipStackMesh(count: number, base: string, stripe: string, options: { radius?: number; chipHeight?: number } = {}): THREE.Group {
-  const group = new THREE.Group();
-  const radius = options.radius ?? 0.22;
-  const chipHeight = options.chipHeight ?? 0.06;
-  const capped = Math.min(count, 14);
-  const key = `${base}:${stripe}:${radius.toFixed(2)}:${chipHeight.toFixed(2)}`;
-  let assets = chipAssetsCache.get(key);
-  if (!assets) {
-    assets = {
-      edge: new THREE.CylinderGeometry(radius, radius, chipHeight, 28, 1, true),
-      face: new THREE.CylinderGeometry(radius * 0.99, radius * 0.99, chipHeight * 0.2, 28),
-      edgeMaterial: new THREE.MeshStandardMaterial({ map: chipEdgeTexture(base, stripe), roughness: 0.5 }),
-      faceMaterial: new THREE.MeshStandardMaterial({ map: chipFaceTexture(base, stripe), roughness: 0.45 }),
-    };
-    assets.edge.userData.shared = true;
-    assets.face.userData.shared = true;
-    assets.edgeMaterial.userData.shared = true;
-    assets.faceMaterial.userData.shared = true;
-    chipAssetsCache.set(key, assets);
-  }
-  for (let index = 0; index < capped; index += 1) {
-    const chip = new THREE.Group();
-    const edge = new THREE.Mesh(assets.edge, assets.edgeMaterial);
-    edge.castShadow = true;
-    chip.add(edge);
-    const top = new THREE.Mesh(assets.face, assets.faceMaterial);
-    top.position.y = chipHeight * 0.42;
-    chip.add(top);
-    const bottom = new THREE.Mesh(assets.face, assets.faceMaterial);
-    bottom.position.y = -chipHeight * 0.42;
-    chip.add(bottom);
-    chip.position.set(
-      (Math.sin(index * 2.399) + Math.cos(index * 1.13)) * radius * 0.08,
-      chipHeight * (index + 0.5),
-      (Math.cos(index * 2.01) - Math.sin(index * 0.77)) * radius * 0.08,
-    );
-    chip.rotation.y = index * 0.6;
-    group.add(chip);
-  }
-  return group;
 }
 
 /** 骰子：六个点面的圆角方块；faceDiceUp 转到指定点数朝上。 */

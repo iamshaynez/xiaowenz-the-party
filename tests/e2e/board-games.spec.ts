@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 
-// 棋牌室 E2E：桌面游戏在真实 Chromium 下完整走通；五子棋/斗地主/德州扑克走 WebGL，飞行棋走 2D SVG。
+// 棋牌室 E2E：桌面游戏在真实 Chromium 下完整走通；五子棋/斗地主走 WebGL，飞行棋与德州扑克走 2D SVG。
 // 只断言稳定阶段（回合归属、终局名次、持久按钮），不绑定瞬时动画文案。
 
 async function newPlayer(browser: Browser, mobile = true) {
@@ -194,7 +194,13 @@ test('德州扑克：双浏览器弃牌收池、结算与再来一局', async ({
   const { owner, guests } = await openRoom(browser, /德州扑克/, 1);
   const second = guests[0]!;
   try {
-    for (const page of [owner.page, second.page]) await expectCanvasRunning(page, 'texas-holdem-canvas');
+    // 2D SVG 牌桌（无 WebGL 依赖）：座位与公共牌槽真实可见。
+    for (const page of [owner.page, second.page]) {
+      const board = page.getByRole('img', { name: '德州扑克牌桌' });
+      await expect(board).toBeVisible({ timeout: 15_000 });
+      await expect(board.locator('[data-testid="th-seat"]')).toHaveCount(2);
+      await expect(board.locator('[data-testid="th-slot"]')).toHaveCount(5);
+    }
     await mkdir('artifacts', { recursive: true });
     await owner.page.screenshot({ path: 'artifacts/texas-holdem-table.png', animations: 'disabled' });
 
