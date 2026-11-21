@@ -20,12 +20,6 @@ vi.mock('../../apps/web/src/components/dou-dizhu/DouDizhuCanvas', () => ({
     return <div data-testid="dou-dizhu-canvas-stub" />;
   },
 }));
-vi.mock('../../apps/web/src/components/texas-holdem/TexasHoldemCanvas', () => ({
-  TexasHoldemCanvas: (props: { onFailure: () => void }) => {
-    useEffect(() => { if (flags.failAll) props.onFailure(); }, []);
-    return <div data-testid="texas-holdem-canvas-stub" />;
-  },
-}));
 
 const players: RoomView['players'] = [
   { id: 'owner', nickname: '小文', avatar: '🦊', role: 'player', connected: true },

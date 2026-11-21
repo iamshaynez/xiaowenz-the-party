@@ -704,7 +704,7 @@ button { border: 0; }
   font-size: 15px;
 }
 .bt-stage { position: relative; flex: 1; min-height: 0; }
-.bt-canvas, .gm-render-host, .dd-render-host, .th-render-host {
+.bt-canvas, .gm-render-host, .dd-render-host {
   position: absolute;
   inset: 0;
   touch-action: none;
@@ -907,5 +907,4 @@ button { border: 0; }
 .th-ranking { margin: 0; padding: 0; list-style: none; color: #ded4bd; display: grid; gap: 6px; }
 .th-ranking .is-own { color: #ffd76e; font-weight: 700; }
 .th-stack-hint { color: #a99f88; font-size: 13px; }
-.th-dom-table { position: absolute; inset: 12px; overflow: auto; padding: 14px; color: #ded4bd; display: grid; gap: 8px; align-content: start; }
-.th-dom-table .is-turn { color: #ffd76e; font-weight: 700; }
+.th-board { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: manipulation; }

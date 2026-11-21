@@ -268,36 +268,6 @@ export function cardBackTexture(accent = '#c8a24a'): THREE.Texture {
   });
 }
 
-/** 筹码侧面条纹（环形展开贴图）。 */
-export function chipEdgeTexture(base: string, stripe: string): THREE.Texture {
-  return cached(`chip-edge:${base}:${stripe}`, 256, (ctx, size) => {
-    ctx.fillStyle = base;
-    ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = stripe;
-    for (let x = 0; x < size; x += size / 6) {
-      ctx.fillRect(x, 0, size / 18, size);
-      ctx.fillRect(x + size / 12, 0, size / 18, size);
-    }
-  });
-}
-
-/** 筹码上下面的圆环面。 */
-export function chipFaceTexture(base: string, ring: string): THREE.Texture {
-  return cached(`chip-face:${base}:${ring}`, 128, (ctx, size) => {
-    ctx.fillStyle = base;
-    ctx.fillRect(0, 0, size, size);
-    ctx.strokeStyle = ring;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size * 0.3, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size * 0.42, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-}
-
 /** 骰子点面（1–6）。 */
 export function diceFaceTexture(pips: number): THREE.Texture {
   return cached(`dice:${pips}`, 128, (ctx, size) => {
